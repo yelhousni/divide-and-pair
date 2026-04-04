@@ -9,13 +9,14 @@ import (
 
 var (
 	subgroupInitOnce sync.Once
-	aPornin          fp.Element // A_p = 2(a+d)
-	bPornin          fp.Element // B_p = (a-d)^2
-	aPrimePorn       fp.Element // A' = -2*A_p
-	bPrimePorn       fp.Element // B' = A_p^2 - 4*B_p
+	aPornin          fp.Element // A = 2(a+d)
+	bPornin          fp.Element // B = (a-d)^2
+	aPrimePorn       fp.Element // A' = -2*A
+	bPrimePorn       fp.Element // B' = A^2 - 4*B
 	aMinusD          fp.Element // a - d
 	sqrtMinOne       fp.Element // i = sqrt(-1) mod q
 	twoI             fp.Element // 2i
+	sqrt2Bp          fp.Element // sqrt(2*B')
 	subgroupOrder    big.Int
 )
 
@@ -42,11 +43,17 @@ func initSubgroupConstants() {
 	sqrtMinOne.SetString("19681161376707505956807079304988542015446066515923890162744021073123829784752")
 	twoI.Double(&sqrtMinOne)
 
+	// sqrt(2*B') — 2 is NQR for this field, but 2*B' is QR
+	var twoBp fp.Element
+	twoBp.Double(&bPrimePorn)
+	sqrt2Bp.Sqrt(&twoBp)
+
 	subgroupOrder.Set(&curveParams.Order)
 }
 
 // isLowOrder checks if an affine point (X, Y) is a low-order point.
-// Low-order iff X=0, Y=0, or X = ±i*Y.
+// For curve25519 (cofactor 8), low-order points in E[8] are exactly
+// the points with X=0, Y=0, or X = ±i*Y.
 func isLowOrder(X, Y *fp.Element) bool {
 	if X.IsZero() || Y.IsZero() {
 		return true
@@ -88,50 +95,6 @@ func edwardsToPorninMontgomery(p *PointAffine) (u, w fp.Element) {
 	return
 }
 
-// halvePornin performs one halving on Pornin's Montgomery curve C(A_p, B_p).
-func halvePornin(u, w *fp.Element) (uOut, wOut fp.Element, ok bool) {
-	var upp, wpp fp.Element
-	upp.Double(u)
-	upp.Double(&upp) // 4u
-	wpp.Double(w)    // 2w
-
-	// w' = sqrt(u'')
-	var wp fp.Element
-	if wp.Sqrt(&upp) == nil {
-		return fp.Element{}, fp.Element{}, false
-	}
-
-	// u' = (w'^2 - A' - w'*w'') / 2
-	var up, tmp fp.Element
-	up.Square(&wp)
-	up.Sub(&up, &aPrimePorn)
-	tmp.Mul(&wp, &wpp)
-	up.Sub(&up, &tmp)
-	up.Halve()
-
-	// Check if u' is QR; if not, switch to other preimage
-	var sqrtUp fp.Element
-	if sqrtUp.Sqrt(&up) == nil {
-		var bDivU fp.Element
-		bDivU.Inverse(&up)
-		bDivU.Mul(&bDivU, &bPrimePorn)
-		up.Set(&bDivU)
-		wp.Neg(&wp)
-		if sqrtUp.Sqrt(&up) == nil {
-			return fp.Element{}, fp.Element{}, false
-		}
-	}
-
-	wOut.Set(&sqrtUp)
-	uOut.Square(&wOut)
-	uOut.Sub(&uOut, &aPornin)
-	tmp.Mul(&wOut, &wp)
-	uOut.Sub(&uOut, &tmp)
-	uOut.Halve()
-
-	return uOut, wOut, true
-}
-
 // quarticCriterion computes the quartic test: χ₄(uR * (wR + 2i)²) using the given symbol function.
 func quarticCriterion(uR, wR *fp.Element, symbolFn func(*fp.Element) uint8) bool {
 	var wShift, f fp.Element
@@ -149,8 +112,14 @@ func (p *PointAffine) IsInSubGroupNaive() bool {
 	return res.IsZero()
 }
 
-// IsInSubGroupPornin tests subgroup membership using Pornin's method:
-// 2 halvings + 1 Legendre symbol.
+// IsInSubGroupPornin tests subgroup membership using Pornin's method
+// (https://eprint.iacr.org/2022/1164):
+// 2 halvings + 1 Legendre symbol (3rd halving check).
+//
+// Following crrl, the halvings are performed division-free by tracking
+// a scaling factor e such that we work on the isomorphic curve
+// Curve(A*e², B*e⁴). When up is not a QR in inverse psi1, we switch
+// to an isomorphic curve instead of computing B'/up.
 func (p *PointAffine) IsInSubGroupPornin() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 
@@ -160,16 +129,81 @@ func (p *PointAffine) IsInSubGroupPornin() bool {
 
 	u, w := edwardsToPorninMontgomery(p)
 
-	u1, w1, ok := halvePornin(&u, &w)
-	if !ok {
-		return false
-	}
-	u2, _, ok := halvePornin(&u1, &w1)
-	if !ok {
-		return false
+	// Scaling factor e (starts at 1 since we converted to affine above).
+	var e fp.Element
+	e.SetOne()
+
+	for range 2 {
+		// Inverse iso: (u, w) -> (4u, 2w) on Curve(As*e², Bs*e⁴)
+		var us, ws fp.Element
+		us.Double(&u)
+		us.Double(&us) // 4u
+		ws.Double(&w)  // 2w
+
+		// Inverse psi2: wp = sqrt(us)
+		// If us is not a square, the point cannot be halved.
+		var wp fp.Element
+		if wp.Sqrt(&us) == nil {
+			return false
+		}
+		// up = (us - A'*e² - wp*ws) / 2
+		var up, tmp, e2 fp.Element
+		e2.Square(&e)
+		tmp.Mul(&e2, &aPrimePorn)
+		up.Sub(&us, &tmp)
+		tmp.Mul(&wp, &ws)
+		up.Sub(&up, &tmp)
+		up.Halve()
+
+		// Inverse psi1.
+		// If up is a QR:
+		//   w = sqrt(up)
+		//   u = (w² - A*e² - w*wp) / 2
+		// If up is NQR (2 is NQR for this field, so 2*up is QR):
+		//   tt = sqrt(2*up)
+		//   Switch to isomorphic curve:
+		//     up' = 2*up²,  wp' = wp*tt,  e' = e*tt
+		//     w = -sqrt(2*B')*e²
+		//   Then: u = (w² - A*e'² - w*wp') / 2; w = -w
+		var sqrtUp fp.Element
+		if sqrtUp.Sqrt(&up) != nil {
+			// QR case
+			w.Set(&sqrtUp)
+			// u = (w² - A*e² - w*wp) / 2
+			tmp.Mul(&e2, &aPornin)
+			u.Square(&w)
+			u.Sub(&u, &tmp)
+			tmp.Mul(&w, &wp)
+			u.Sub(&u, &tmp)
+			u.Halve()
+		} else {
+			// NQR case: compute tt = sqrt(2*up)
+			var twoUp fp.Element
+			twoUp.Double(&up)
+			var tt fp.Element
+			tt.Sqrt(&twoUp)
+
+			// Update isomorphism
+			wp.Mul(&wp, &tt)
+			w.Mul(&sqrt2Bp, &e2)
+			e.Mul(&e, &tt)
+
+			// u = (w² - A*e² - w*wp) / 2
+			e2.Square(&e)
+			tmp.Mul(&e2, &aPornin)
+			u.Square(&w)
+			u.Sub(&u, &tmp)
+			tmp.Mul(&w, &wp)
+			u.Sub(&u, &tmp)
+			u.Halve()
+
+			// Negate w for next iteration (sign from using Bp/up preimage)
+			w.Neg(&w)
+		}
 	}
 
-	return u2.Legendre() == 1
+	// Third halving: only check whether u is a QR (Legendre symbol).
+	return u.Legendre() == 1
 }
 
 // IsInSubGroupQuartic tests subgroup membership using our improved method:
@@ -183,12 +217,71 @@ func (p *PointAffine) IsInSubGroupQuartic() bool {
 
 	u, w := edwardsToPorninMontgomery(p)
 
-	uR, wR, ok := halvePornin(&u, &w)
-	if !ok {
+	// Single halving (division-free with scaling factor e).
+	var e fp.Element
+	e.SetOne()
+
+	// Inverse iso
+	var us, ws fp.Element
+	us.Double(&u)
+	us.Double(&us)
+	ws.Double(&w)
+
+	// Inverse psi2
+	var wp fp.Element
+	if wp.Sqrt(&us) == nil {
 		return false
 	}
+	var up, tmp, e2 fp.Element
+	e2.Square(&e)
+	tmp.Mul(&e2, &aPrimePorn)
+	up.Sub(&us, &tmp)
+	tmp.Mul(&wp, &ws)
+	up.Sub(&up, &tmp)
+	up.Halve()
 
-	return quarticCriterion(&uR, &wR, (*fp.Element).QuarticSymbol)
+	// Inverse psi1
+	var sqrtUp fp.Element
+	if sqrtUp.Sqrt(&up) != nil {
+		w.Set(&sqrtUp)
+		tmp.Mul(&e2, &aPornin)
+		u.Square(&w)
+		u.Sub(&u, &tmp)
+		tmp.Mul(&w, &wp)
+		u.Sub(&u, &tmp)
+		u.Halve()
+	} else {
+		var twoUp fp.Element
+		twoUp.Double(&up)
+		var tt fp.Element
+		tt.Sqrt(&twoUp)
+
+		wp.Mul(&wp, &tt)
+		w.Mul(&sqrt2Bp, &e2)
+		e.Mul(&e, &tt)
+
+		e2.Square(&e)
+		tmp.Mul(&e2, &aPornin)
+		u.Square(&w)
+		u.Sub(&u, &tmp)
+		tmp.Mul(&w, &wp)
+		u.Sub(&u, &tmp)
+		u.Halve()
+
+		w.Neg(&w)
+	}
+
+	// Quartic criterion on (u, w) — note: u and w are on an isomorphic
+	// curve scaled by e. The quartic symbol is scale-invariant for the
+	// criterion χ₄(u * (w + 2i*e)²) since the e factors cancel in the
+	// exponentiation. But we need to adjust 2i by e.
+	var wShift, f fp.Element
+	var twoIe fp.Element
+	twoIe.Mul(&twoI, &e)
+	wShift.Add(&w, &twoIe)
+	f.Square(&wShift)
+	f.Mul(&f, &u)
+	return f.QuarticSymbol() == 0
 }
 
 // IsInSubGroupQuarticExp tests subgroup membership using:
@@ -202,10 +295,65 @@ func (p *PointAffine) IsInSubGroupQuarticExp() bool {
 
 	u, w := edwardsToPorninMontgomery(p)
 
-	uR, wR, ok := halvePornin(&u, &w)
-	if !ok {
+	// Single halving (division-free with scaling factor e).
+	var e fp.Element
+	e.SetOne()
+
+	// Inverse iso
+	var us, ws fp.Element
+	us.Double(&u)
+	us.Double(&us)
+	ws.Double(&w)
+
+	// Inverse psi2
+	var wp fp.Element
+	if wp.Sqrt(&us) == nil {
 		return false
 	}
+	var up, tmp, e2 fp.Element
+	e2.Square(&e)
+	tmp.Mul(&e2, &aPrimePorn)
+	up.Sub(&us, &tmp)
+	tmp.Mul(&wp, &ws)
+	up.Sub(&up, &tmp)
+	up.Halve()
 
-	return quarticCriterion(&uR, &wR, (*fp.Element).QuarticSymbolExp)
+	// Inverse psi1
+	var sqrtUp fp.Element
+	if sqrtUp.Sqrt(&up) != nil {
+		w.Set(&sqrtUp)
+		tmp.Mul(&e2, &aPornin)
+		u.Square(&w)
+		u.Sub(&u, &tmp)
+		tmp.Mul(&w, &wp)
+		u.Sub(&u, &tmp)
+		u.Halve()
+	} else {
+		var twoUp fp.Element
+		twoUp.Double(&up)
+		var tt fp.Element
+		tt.Sqrt(&twoUp)
+
+		wp.Mul(&wp, &tt)
+		w.Mul(&sqrt2Bp, &e2)
+		e.Mul(&e, &tt)
+
+		e2.Square(&e)
+		tmp.Mul(&e2, &aPornin)
+		u.Square(&w)
+		u.Sub(&u, &tmp)
+		tmp.Mul(&w, &wp)
+		u.Sub(&u, &tmp)
+		u.Halve()
+
+		w.Neg(&w)
+	}
+
+	var wShift, f fp.Element
+	var twoIe fp.Element
+	twoIe.Mul(&twoI, &e)
+	wShift.Add(&w, &twoIe)
+	f.Square(&wShift)
+	f.Mul(&f, &u)
+	return f.QuarticSymbolExp() == 0
 }
