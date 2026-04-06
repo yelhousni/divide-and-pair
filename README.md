@@ -14,9 +14,9 @@ Companion code for the article *"Divide-and-Pair: Faster subgroup membership tes
 |-------|-------|---|----------|------------------|----------|-------------|
 | **Curve25519** | p = 2²⁵⁵ − 19 | −1 | 8 | 4 | 1 | Quartic symbol |
 | **JubJub** | BLS12-381 Fr | −1 | 8 | 8 | 0 | Octic symbol |
-| **FourQ** | Fp² (p = 2¹²⁷ − 1) | −1 | 392 | 392 | 0 | Octic + septic |
-| **Curve448** | p = 2⁴⁴⁸ − 2²²⁴ − 1 | 1 | 4 | 2 | 1 | Legendre symbol |
-| **GC256A** | p = 2²⁵⁶ − 617 | 1 | 4 | 2 | 1 | Legendre symbol |
+| **FourQ** | Fp² (p = 2¹²⁷ − 1) | −1 | 392 | 392 | 0 | Octic + septic symbols|
+| **Curve448** | p = 2⁴⁴⁸ − 2²²⁴ − 1 | 1 | 4 | 2 | 1 | Quadratic symbol |
+| **GC256A** | p = 2²⁵⁶ − 617 | 1 | 4 | 2 | 1 | Quadratic symbol |
 
 ## Methods
 
