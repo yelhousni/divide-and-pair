@@ -27,9 +27,7 @@ var (
 	lamAdd1               fp.E2 // chord slope S7, [2]S7
 	X3S, Y3S              fp.E2 // [3]S7
 	lamDbl2               fp.E2 // tangent slope at [3]S7
-	X6S                   fp.E2 // [6]S7 = -S7 (X only, Y is -YS7)
-
-	septicExp big.Int // (p-1)/7
+	X6S fp.E2 // [6]S7 = -S7 (X only, Y is -YS7)
 
 	three fp.E2
 )
@@ -98,10 +96,6 @@ func initSMTConstants() {
 	lamDbl2.A1.SetBigInt(bigFromDec("21100793565021504938029727675157445515"))
 
 	X6S.Set(&XS7) // [6]S7 = -S7, same X
-
-	p := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 127), big.NewInt(1))
-	pm1 := new(big.Int).Sub(p, big.NewInt(1))
-	septicExp.Div(pm1, big.NewInt(7))
 }
 
 func edwardsToWeierstrass(p *PointAffine) (X, Y fp.E2) {
@@ -269,8 +263,9 @@ func (p *PointAffine) IsInSubGroupTate() bool {
 	// Frobenius trick for septic:
 	// f7^((p²-1)/7) = (f7^((p-1)/7))^(p+1) = Norm(f7^((p-1)/7))
 	// Since 7 | p-1, (p-1)/7 is integer. And z^(p+1) = Norm(z) for z ∈ Fp².
+	// Uses a 131-step addition chain for (p-1)/7.
 	var f7exp fp.E2
-	f7exp.Exp(&f7, &septicExp) // f7^((p-1)/7)
+	f7exp.ExpBySeptic(&f7) // f7^((p-1)/7)
 	var norm fp.E2
 	norm.Conjugate(&f7exp)
 	norm.Mul(&norm, &f7exp) // Norm = conj * z = |z|^2
