@@ -1,6 +1,12 @@
-# Divide-and-Pair: Subgroup Membership Testing
+# Divide-and-Pair: Faster subgroup membership testing for elliptic curves
 
-Go implementation of fast subgroup membership testing on twisted Edwards curves using the **Divide-and-Pair** framework, which combines point halvings with Tate pairing-based residuosity checks.
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Go Report Card](https://goreportcard.com/badge/github.com/yelhousni/divide-and-pair)](https://goreportcard.com/report/github.com/yelhousni/divide-and-pair) [![Go Reference](https://pkg.go.dev/badge/github.com/yelhousni/divide-and-pair.svg)](https://pkg.go.dev/github.com/yelhousni/divide-and-pair)
+
+<p align="center">
+  <img src="divide-and-pair.svg" alt="Divide-and-Pair" width="500">
+</p>
+
+Companion code for the article *"Divide-and-Pair: Faster subgroup membership testing for elliptic curves"* by Y. Dai, Y. El Housni, D. Koshelev and K. Reijinders.
 
 ## Curves
 
