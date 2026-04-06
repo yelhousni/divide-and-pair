@@ -8,6 +8,7 @@ Go implementation of fast subgroup membership testing on twisted Edwards curves 
 |-------|-------|---|----------|------------------|----------|-------------|
 | **Curve25519** | p = 2²⁵⁵ − 19 | −1 | 8 | 4 | 1 | Quartic symbol |
 | **JubJub** | BLS12-381 Fr | −1 | 8 | 8 | 0 | Octic symbol |
+| **FourQ** | Fp² (p = 2¹²⁷ − 1) | −1 | 392 | 392 | 0 | Octic + septic |
 | **Curve448** | p = 2⁴⁴⁸ − 2²²⁴ − 1 | 1 | 4 | 2 | 1 | Legendre symbol |
 | **GC256A** | p = 2²⁵⁶ − 617 | 1 | 4 | 2 | 1 | Legendre symbol |
 
@@ -18,6 +19,7 @@ Go implementation of fast subgroup membership testing on twisted Edwards curves 
 - **Quartic** (Curve25519): replaces one halving + Legendre with a single quartic residue symbol, computed via Weilert's Euclidean algorithm over Z[i].
 - **QuarticExp** (Curve25519): same as Quartic but uses addition-chain exponentiation for the quartic symbol.
 - **OcticExp** (JubJub): 0 halvings + 1 octic residuosity check. Since d = gcd(8, p−1) = 8 for the BLS12-381 scalar field (p ≡ 1 mod 8), no halvings are needed. The degree-8 Miller function is evaluated on the Weierstrass model via a 3-step doubling chain, and the octic symbol χ₈(f) = f^((p−1)/8) is checked division-free.
+- **Tate** (FourQ): 0 divisions + octic check (Frobenius: 124 Fp² squarings) + septic check (degree-7 Miller function with precomputed intermediates + 125-bit Fp² exp + Norm).
 
 ## Benchmarks
 
@@ -37,6 +39,12 @@ Apple M5, Go 1.25, `go test -bench=.`:
 | Naive | 1,072 µs | 1× |
 | Pornin | 28 µs | 38× |
 | **OcticExp** | **5.7 µs** | **188×** |
+
+### FourQ
+| Method | Time | Speedup vs Naive |
+|--------|------|-----------------|
+| Naive | 712 µs | 1× |
+| **Tate (octic + septic)** | **7 µs** | **100×** |
 
 ### Curve448
 | Method | Time | Speedup vs Naive |
@@ -75,10 +83,21 @@ p.ScalarMultiplication(&params.Base, k)
 p.IsInSubGroupOcticExp()   // 0 halvings + octic symbol (exp)
 ```
 
+```go
+import "github.com/yelhousni/divide-and-pair/fourq"
+
+params := fourq.GetFourQCurve()
+var p fourq.PointAffine
+p.ScalarMultiplication(&params.Base, k)
+
+p.IsInSubGroupTate()       // octic (Frobenius) + septic check
+```
+
 ## References
 
-- Pornin test, [*Point-Halving and Subgroup Membership in Twisted Edwards Curves*](https://eprint.iacr.org/2022/1164), 2022.
-- Koshelev test, [*Subgroup membership testing on elliptic curves via the Tate pairing*](https://eprint.iacr.org/2022/037), 2022.
+- Pornin, [*Point-Halving and Subgroup Membership in Twisted Edwards Curves*](https://eprint.iacr.org/2022/1164), 2022.
+- Koshelev, [*Subgroup membership testing on elliptic curves via the Tate pairing*](https://eprint.iacr.org/2022/037), 2022.
+- Costello and Longa, [*FourQ: four-dimensional decompositions on a Q-curve over the Mersenne prime*](https://eprint.iacr.org/2015/565), ASIACRYPT 2015.
 - Weilert, [*Fast Computation of the Biquadratic Residue Symbol*](https://doi.org/10.1007/s00145-002-0131-7), J. Cryptology, 2003.
 - [RFC 8032](https://www.rfc-editor.org/rfc/rfc8032) — Curve25519 and Ed448.
 - [RFC 7836](https://www.rfc-editor.org/rfc/rfc7836) — GC256A (GOST R 34.10-2012).
