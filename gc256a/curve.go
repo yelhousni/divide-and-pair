@@ -7,18 +7,17 @@ import (
 	fp "github.com/yelhousni/divide-and-pair/gc256a/fp"
 )
 
-// CurveParams curve parameters: Ax^2 + y^2 = 1 + Dx^2*y^2
-type CurveParams struct {
+// curveData holds curve parameters: Ax^2 + y^2 = 1 + Dx^2*y^2.
+type curveData struct {
 	A, D     fp.Element
 	Cofactor fp.Element
 	Order    big.Int
 	Base     PointAffine
 }
 
-// GetEdwardsCurve returns the GC256A Edwards curve on Fp
-func GetEdwardsCurve() CurveParams {
+func curveParameters() curveData {
 	initOnce.Do(initCurveParams)
-	var res CurveParams
+	var res curveData
 	res.A.Set(&curveParams.A)
 	res.D.Set(&curveParams.D)
 	res.Cofactor.Set(&curveParams.Cofactor)
@@ -27,9 +26,31 @@ func GetEdwardsCurve() CurveParams {
 	return res
 }
 
+// Generators returns the generator of the prime-order subgroup.
+func Generators() (base PointAffine) {
+	initOnce.Do(initCurveParams)
+	base.Set(&curveParams.Base)
+	return
+}
+
+// CurveCoefficients returns the a and d coefficients of
+// A*x² + y² = 1 + D*x²*y².
+func CurveCoefficients() (a, d fp.Element) {
+	initOnce.Do(initCurveParams)
+	a.Set(&curveParams.A)
+	d.Set(&curveParams.D)
+	return
+}
+
+// Order returns the prime subgroup order.
+func Order() *big.Int {
+	initOnce.Do(initCurveParams)
+	return new(big.Int).Set(&curveParams.Order)
+}
+
 var (
 	initOnce    sync.Once
-	curveParams CurveParams
+	curveParams curveData
 )
 
 func initCurveParams() {

@@ -5,9 +5,9 @@ import (
 	"math/big"
 	"testing"
 
-	fp "github.com/yelhousni/divide-and-pair/curve25519/fp"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
+	fp "github.com/yelhousni/divide-and-pair/curve25519/fp"
 )
 
 func GenBigInt() gopter.Gen {
@@ -33,7 +33,7 @@ func TestReceiverIsOperand(t *testing.T) {
 
 	properties.Property("Add affine: receiver as operand", prop.ForAll(
 		func() bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1, p2, p3 PointAffine
 			p1.Set(&params.Base)
 			p2.Set(&params.Base)
@@ -52,7 +52,7 @@ func TestReceiverIsOperand(t *testing.T) {
 
 	properties.Property("Double affine: receiver as operand", prop.ForAll(
 		func() bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.Set(&params.Base)
 			p2.Set(&params.Base)
@@ -64,7 +64,7 @@ func TestReceiverIsOperand(t *testing.T) {
 
 	properties.Property("Neg affine: receiver as operand", prop.ForAll(
 		func() bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.Set(&params.Base)
 			p2.Neg(&p1)
@@ -75,7 +75,7 @@ func TestReceiverIsOperand(t *testing.T) {
 
 	properties.Property("ScalarMul affine: receiver as operand", prop.ForAll(
 		func() bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.Set(&params.Base)
 			p2.Set(&params.Base)
@@ -99,7 +99,7 @@ func TestField(t *testing.T) {
 
 	properties.Property("MulByA(x) should match Mul(x, curve.A)", prop.ForAll(
 		func(s big.Int) bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var z1, z2 fp.Element
 			z1.SetBigInt(&s)
 			z2.Mul(&z1, &params.A)
@@ -122,7 +122,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("P+0=P", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1, p2, zero PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			zero.X.SetZero()
@@ -135,7 +135,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("P+(-P)=O", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p2.Neg(&p1)
@@ -147,7 +147,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("P+P=2*P", prop.ForAll(
 		func(s big.Int) bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s)
 			p2.Set(&p1)
@@ -160,7 +160,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("[a]P+[b]P = [a+b]P", prop.ForAll(
 		func(s1, s2 big.Int) bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1, p2, p3 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p2.ScalarMultiplication(&params.Base, &s2)
@@ -175,7 +175,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("[5]P=[2][2]P+P", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p2.Double(&p1)
@@ -189,7 +189,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("[0]P = O", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p1.ScalarMultiplication(&p1, big.NewInt(0))
@@ -200,7 +200,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("[1]P = P", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p2.ScalarMultiplication(&p1, big.NewInt(1))
@@ -211,7 +211,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("[-1]P = Neg(P)", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p2.ScalarMultiplication(&p1, big.NewInt(-1))
@@ -223,7 +223,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("[order]P = O", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p1.ScalarMultiplication(&p1, &params.Order)
@@ -234,7 +234,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("Projective round-trip", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetEdwardsCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			var proj PointProj
 			p1.ScalarMultiplication(&params.Base, &s1)

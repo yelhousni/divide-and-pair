@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"sync"
 
-	fp "github.com/yelhousni/divide-and-pair/fourq/fp2"
+	fp2 "github.com/yelhousni/divide-and-pair/fourq/fp2"
 )
 
 // This file implements the two efficiently computable endomorphisms on FourQ
@@ -23,14 +23,14 @@ var (
 	endoInitOnce sync.Once
 
 	// √d̂ for τ and τ̂ isogenies, where d̂ = -1/(1+d)
-	sqrtDhat fp.E2
+	sqrtDhat fp2.E2
 
 	// Inner ψ constants (Section 3.1)
-	cPsi1, cPsi2, cPsi3, cPsi4 fp.E2
+	cPsi1, cPsi2, cPsi3, cPsi4 fp2.E2
 
 	// Inner φ constants (Section 3.2)
-	cPhi1, cPhi2, cPhi3, cPhi4, cPhi5 fp.E2
-	cPhi6, cPhi7, cPhi8, cPhi9, cPhi10 fp.E2
+	cPhi1, cPhi2, cPhi3, cPhi4, cPhi5  fp2.E2
+	cPhi6, cPhi7, cPhi8, cPhi9, cPhi10 fp2.E2
 
 	// Eigenvalues on E(Fp2)[N]
 	lambdaPsi    big.Int
@@ -45,38 +45,38 @@ func initEndoConstants() {
 	initOnce.Do(initCurveParams)
 
 	// All constants verified in Sage (sage/fourq_endo_constants.sage)
-	sqrtDhat.A0.SetBigInt(bigFromDec("120525532476903946900736407295642634213"))
-	sqrtDhat.A1.SetBigInt(bigFromDec("110680464442257309687"))
+	sqrtDhat.A0.SetString("120525532476903946900736407295642634213")
+	sqrtDhat.A1.SetString("110680464442257309687")
 
-	cPsi1.A0.SetBigInt(bigFromDec("55340232221128654846"))
-	cPsi1.A1.SetBigInt(bigFromDec("82748376373132255413681934895176861263"))
-	cPsi2.A0.SetBigInt(bigFromDec("170141183460469231621006839273626796022"))
-	cPsi2.A1.SetBigInt(bigFromDec("68193373840384168448244632122363004318"))
-	cPsi3.A0.SetBigInt(bigFromDec("1826227663297245609844"))
-	cPsi3.A1.SetBigInt(bigFromDec("0"))
-	cPsi4.A0.SetBigInt(bigFromDec("1051464412201444442036"))
-	cPsi4.A1.SetBigInt(bigFromDec("47353979519174373375585696079102794256"))
+	cPsi1.A0.SetString("55340232221128654846")
+	cPsi1.A1.SetString("82748376373132255413681934895176861263")
+	cPsi2.A0.SetString("170141183460469231621006839273626796022")
+	cPsi2.A1.SetString("68193373840384168448244632122363004318")
+	cPsi3.A0.SetString("1826227663297245609844")
+	cPsi3.A1.SetString("0")
+	cPsi4.A0.SetString("1051464412201444442036")
+	cPsi4.A1.SetString("47353979519174373375585696079102794256")
 
-	cPhi1.A0.SetBigInt(bigFromDec("170141183460469231621006839273626796040"))
-	cPhi1.A1.SetBigInt(bigFromDec("120525532476903946900736407295642634213"))
-	cPhi2.A0.SetBigInt(bigFromDec("92233720368547758087"))
-	cPhi2.A1.SetBigInt(bigFromDec("131306912742858181648727312260439119609"))
-	cPhi3.A0.SetBigInt(bigFromDec("276701161105643274261"))
-	cPhi3.A1.SetBigInt(bigFromDec("160666015865631300014011952927357137809"))
-	cPhi4.A0.SetBigInt(bigFromDec("36893488147419103235"))
-	cPhi4.A1.SetBigInt(bigFromDec("107027644557995218531204623577807990436"))
-	cPhi5.A0.SetBigInt(bigFromDec("55340232221128654851"))
-	cPhi5.A1.SetBigInt(bigFromDec("24279268184862963117522688682631129173"))
-	cPhi6.A0.SetBigInt(bigFromDec("184467440737095516175"))
-	cPhi6.A1.SetBigInt(bigFromDec("92472642025247131565767320804994133491"))
-	cPhi7.A0.SetBigInt(bigFromDec("1660206966633859645560"))
-	cPhi7.A1.SetBigInt(bigFromDec("74020502950125156999236689470520806275"))
-	cPhi8.A0.SetBigInt(bigFromDec("2213609288845146194095"))
-	cPhi8.A1.SetBigInt(bigFromDec("41136875617835130850915686116875720836"))
-	cPhi9.A0.SetBigInt(bigFromDec("3135946492530623774960"))
-	cPhi9.A1.SetBigInt(bigFromDec("41635071732389019719735756359456329456"))
-	cPhi10.A0.SetBigInt(bigFromDec("39844967199212631493615"))
-	cPhi10.A1.SetBigInt(bigFromDec("21045324596686230484035983431638590725"))
+	cPhi1.A0.SetString("170141183460469231621006839273626796040")
+	cPhi1.A1.SetString("120525532476903946900736407295642634213")
+	cPhi2.A0.SetString("92233720368547758087")
+	cPhi2.A1.SetString("131306912742858181648727312260439119609")
+	cPhi3.A0.SetString("276701161105643274261")
+	cPhi3.A1.SetString("160666015865631300014011952927357137809")
+	cPhi4.A0.SetString("36893488147419103235")
+	cPhi4.A1.SetString("107027644557995218531204623577807990436")
+	cPhi5.A0.SetString("55340232221128654851")
+	cPhi5.A1.SetString("24279268184862963117522688682631129173")
+	cPhi6.A0.SetString("184467440737095516175")
+	cPhi6.A1.SetString("92472642025247131565767320804994133491")
+	cPhi7.A0.SetString("1660206966633859645560")
+	cPhi7.A1.SetString("74020502950125156999236689470520806275")
+	cPhi8.A0.SetString("2213609288845146194095")
+	cPhi8.A1.SetString("41136875617835130850915686116875720836")
+	cPhi9.A0.SetString("3135946492530623774960")
+	cPhi9.A1.SetString("41635071732389019719735756359456329456")
+	cPhi10.A0.SetString("39844967199212631493615")
+	cPhi10.A1.SetString("21045324596686230484035983431638590725")
 }
 
 func init() {
@@ -119,21 +119,21 @@ func multiScalarMulIsZero(P1, P2, P3, P4 *PointAffine, s1, s2, s3, s4 *big.Int) 
 
 	// Precompute all 15 non-trivial sums: table[mask-1] = sum of pts[i] where bit i is set
 	var table [15]PointAffine
-	table[0].Set(&pts[0])                  // 0001
-	table[1].Set(&pts[1])                  // 0010
-	table[2].Add(&pts[0], &pts[1])         // 0011
-	table[3].Set(&pts[2])                  // 0100
-	table[4].Add(&pts[0], &pts[2])         // 0101
-	table[5].Add(&pts[1], &pts[2])         // 0110
-	table[6].Add(&table[2], &pts[2])       // 0111
-	table[7].Set(&pts[3])                  // 1000
-	table[8].Add(&pts[0], &pts[3])         // 1001
-	table[9].Add(&pts[1], &pts[3])         // 1010
-	table[10].Add(&table[2], &pts[3])      // 1011
-	table[11].Add(&pts[2], &pts[3])        // 1100
-	table[12].Add(&table[4], &pts[3])      // 1101
-	table[13].Add(&table[5], &pts[3])      // 1110
-	table[14].Add(&table[6], &pts[3])      // 1111
+	table[0].Set(&pts[0])             // 0001
+	table[1].Set(&pts[1])             // 0010
+	table[2].Add(&pts[0], &pts[1])    // 0011
+	table[3].Set(&pts[2])             // 0100
+	table[4].Add(&pts[0], &pts[2])    // 0101
+	table[5].Add(&pts[1], &pts[2])    // 0110
+	table[6].Add(&table[2], &pts[2])  // 0111
+	table[7].Set(&pts[3])             // 1000
+	table[8].Add(&pts[0], &pts[3])    // 1001
+	table[9].Add(&pts[1], &pts[3])    // 1010
+	table[10].Add(&table[2], &pts[3]) // 1011
+	table[11].Add(&pts[2], &pts[3])   // 1100
+	table[12].Add(&table[4], &pts[3]) // 1101
+	table[13].Add(&table[5], &pts[3]) // 1110
+	table[14].Add(&table[6], &pts[3]) // 1111
 
 	// Find max bit length
 	maxBits := 0
@@ -145,8 +145,7 @@ func multiScalarMulIsZero(P1, P2, P3, P4 *PointAffine, s1, s2, s3, s4 *big.Int) 
 
 	// Joint double-and-add (MSB to LSB)
 	var result PointAffine
-	result.X.SetZero()
-	result.Y.SetOne() // identity
+	result.SetInfinity()
 
 	for i := maxBits - 1; i >= 0; i-- {
 		result.Double(&result)
@@ -167,7 +166,7 @@ func multiScalarMulIsZero(P1, P2, P3, P4 *PointAffine, s1, s2, s3, s4 *big.Int) 
 
 // mulByI sets z = z * i where i² = -1.
 // (a + b·i) * i = -b + a·i
-func mulByI(z *fp.E2) {
+func mulByI(z *fp2.E2) {
 	z.A0, z.A1 = z.A1, z.A0
 	z.A0.Neg(&z.A0)
 }
@@ -175,8 +174,8 @@ func mulByI(z *fp.E2) {
 // tau computes the 4-isogeny τ: E → Ê (Proposition 1).
 //
 //	τ(x,y) = ( 2xy / ((x²+y²)·√d̂), (x²−y²+2) / (y²−x²) )
-func tau(p *PointAffine, rx, ry *fp.E2) {
-	var x2, y2, xy, x2py2, x2my2 fp.E2
+func tau(p *PointAffine, rx, ry *fp2.E2) {
+	var x2, y2, xy, x2py2, x2my2 fp2.E2
 
 	x2.Square(&p.X)
 	y2.Square(&p.Y)
@@ -185,14 +184,14 @@ func tau(p *PointAffine, rx, ry *fp.E2) {
 	x2my2.Sub(&x2, &y2)
 
 	// rx = 2xy / ((x²+y²)·√d̂)
-	var num, den fp.E2
+	var num, den fp2.E2
 	num.Double(&xy)
 	den.Mul(&x2py2, &sqrtDhat)
 	den.Inverse(&den)
 	rx.Mul(&num, &den)
 
 	// ry = (x²−y²+2) / (y²−x²)
-	var two fp.E2
+	var two fp2.E2
 	two.A0.SetUint64(2)
 	num.Add(&x2my2, &two)
 	den.Neg(&x2my2) // y²−x²
@@ -203,8 +202,8 @@ func tau(p *PointAffine, rx, ry *fp.E2) {
 // tauDual computes the dual 4-isogeny τ̂: Ê → E (Proposition 1).
 //
 //	τ̂(x,y) = ( 2xy·√d̂ / (x²−y²+2), (y²−x²) / (y²+x²) )
-func tauDual(x, y *fp.E2, result *PointAffine) {
-	var x2, y2, xy, x2py2, x2my2 fp.E2
+func tauDual(x, y *fp2.E2, result *PointAffine) {
+	var x2, y2, xy, x2py2, x2my2 fp2.E2
 
 	x2.Square(x)
 	y2.Square(y)
@@ -213,7 +212,7 @@ func tauDual(x, y *fp.E2, result *PointAffine) {
 	x2my2.Sub(&x2, &y2)
 
 	// result.X = 2xy·√d̂ / (x²−y²+2)
-	var num, den, two fp.E2
+	var num, den, two fp2.E2
 	num.Double(&xy)
 	num.Mul(&num, &sqrtDhat)
 	two.A0.SetUint64(2)
@@ -233,14 +232,14 @@ func tauDual(x, y *fp.E2, result *PointAffine) {
 //	Y' = (cPsi2 − (x^p)²) / (cPsi2 + (x^p)²)
 //
 // where x^p = conj(x), y^p = conj(y).
-func innerPsi(x, y, rx, ry *fp.E2) {
-	var xp, yp, xp2 fp.E2
+func innerPsi(x, y, rx, ry *fp2.E2) {
+	var xp, yp, xp2 fp2.E2
 	xp.Conjugate(x)
 	yp.Conjugate(y)
 	xp2.Square(&xp)
 
 	// rx = 2i·xp·cPsi1 / (yp · (xp²·cPsi3 + cPsi4))
-	var num, den fp.E2
+	var num, den fp2.E2
 	num.Mul(&xp, &cPsi1)
 	num.Double(&num)
 	mulByI(&num)
@@ -251,7 +250,7 @@ func innerPsi(x, y, rx, ry *fp.E2) {
 	rx.Mul(&num, &den)
 
 	// ry = (cPsi2 − xp²) / (cPsi2 + xp²)
-	var numY, denY fp.E2
+	var numY, denY fp2.E2
 	numY.Sub(&cPsi2, &xp2)
 	denY.Add(&cPsi2, &xp2)
 	denY.Inverse(&denY)
@@ -264,13 +263,13 @@ func innerPsi(x, y, rx, ry *fp.E2) {
 //	      / ((y²+cPhi4·y+cPhi5)·(y²−cPhi4·y+cPhi5))^p
 //	y_φ = (cPhi6·(5y⁴+cPhi7·y²+cPhi8))^p
 //	      / (5y·(y⁴+cPhi9·y²+cPhi10))^p
-func innerPhi(x, y, rx, ry *fp.E2) {
-	var y2, y4, tmp fp.E2
+func innerPhi(x, y, rx, ry *fp2.E2) {
+	var y2, y4, tmp fp2.E2
 	y2.Square(y)
 	y4.Square(&y2)
 
 	// x_φ numerator: cPhi1·x·(y²−cPhi2·y+cPhi3)·(y²+cPhi2·y+cPhi3)
-	var t1, t2, numX fp.E2
+	var t1, t2, numX fp2.E2
 	// t1 = y² − cPhi2·y + cPhi3
 	tmp.Mul(&cPhi2, y)
 	t1.Sub(&y2, &tmp)
@@ -283,7 +282,7 @@ func innerPhi(x, y, rx, ry *fp.E2) {
 	numX.Mul(&numX, &t2)
 
 	// x_φ denominator: (y²+cPhi4·y+cPhi5)·(y²−cPhi4·y+cPhi5)
-	var t3, t4, denX fp.E2
+	var t3, t4, denX fp2.E2
 	tmp.Mul(&cPhi4, y)
 	t3.Add(&y2, &tmp)
 	t3.Add(&t3, &cPhi5)
@@ -298,8 +297,8 @@ func innerPhi(x, y, rx, ry *fp.E2) {
 	rx.Mul(&numX, &denX)
 
 	// y_φ numerator: cPhi6·(5·y⁴+cPhi7·y²+cPhi8)
-	var numY fp.E2
-	var five fp.E2
+	var numY fp2.E2
+	var five fp2.E2
 	five.A0.SetUint64(5)
 	numY.Mul(&five, &y4)
 	tmp.Mul(&cPhi7, &y2)
@@ -308,7 +307,7 @@ func innerPhi(x, y, rx, ry *fp.E2) {
 	numY.Mul(&cPhi6, &numY)
 
 	// y_φ denominator: 5·y·(y⁴+cPhi9·y²+cPhi10)
-	var denY fp.E2
+	var denY fp2.E2
 	denY.Set(&y4)
 	tmp.Mul(&cPhi9, &y2)
 	denY.Add(&denY, &tmp)
@@ -329,12 +328,10 @@ func (p *PointAffine) Psi(q *PointAffine) *PointAffine {
 	endoInitOnce.Do(initEndoConstants)
 
 	if q.IsZero() {
-		p.X.SetZero()
-		p.Y.SetOne()
-		return p
+		return p.SetInfinity()
 	}
 
-	var tx, ty, mx, my fp.E2
+	var tx, ty, mx, my fp2.E2
 	tau(q, &tx, &ty)
 	innerPsi(&tx, &ty, &mx, &my)
 	tauDual(&mx, &my, p)
@@ -347,19 +344,17 @@ func (p *PointAffine) Phi(q *PointAffine) *PointAffine {
 	endoInitOnce.Do(initEndoConstants)
 
 	if q.IsZero() {
-		p.X.SetZero()
-		p.Y.SetOne()
-		return p
+		return p.SetInfinity()
 	}
 
-	var tx, ty, mx, my fp.E2
+	var tx, ty, mx, my fp2.E2
 	tau(q, &tx, &ty)
 	innerPhi(&tx, &ty, &mx, &my)
 	tauDual(&mx, &my, p)
 	return p
 }
 
-// IsInSubGroupEndo tests subgroup membership using the endomorphism-based
+// isInSubGroupEndo tests subgroup membership using the endomorphism-based
 // GLV decomposition. It checks:
 //
 //	[c1]P + [c2]φ(P) + [c3]ψ(P) + [c4]ψ(φ(P)) == O
@@ -369,7 +364,7 @@ func (p *PointAffine) Phi(q *PointAffine) *PointAffine {
 // in the lattice of zero decompositions.
 //
 // Cost: endomorphisms (68M+27S+49.5A) + 4-dim MSM with ~61-bit scalars.
-func (p *PointAffine) IsInSubGroupEndo() bool {
+func (p *PointAffine) isInSubGroupEndo() bool {
 	endoInitOnce.Do(initEndoConstants)
 	initOnce.Do(initCurveParams)
 

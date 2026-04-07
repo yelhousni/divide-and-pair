@@ -1,4 +1,4 @@
-package fp
+package fp2
 
 // ExpBySeptic computes z = x^((p-1)/7) using a 131-step addition chain.
 // The exponent (p-1)/7 = 0x12492492492492492492492492492492 has a regular

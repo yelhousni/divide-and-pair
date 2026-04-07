@@ -4,104 +4,104 @@ import (
 	"math/big"
 	"sync"
 
-	fp "github.com/yelhousni/divide-and-pair/fourq/fp2"
+	fp2 "github.com/yelhousni/divide-and-pair/fourq/fp2"
 )
 
 var (
 	smtInitOnce sync.Once
 
 	// Weierstrass model constants (over Fp2)
-	aW    fp.E2
-	Adiv3 fp.E2
+	aW    fp2.E2
+	Adiv3 fp2.E2
 
 	// 8-torsion point T8 on Weierstrass
-	XT8, YT8, lamT8 fp.E2
-	XT4, YT4, lamT4 fp.E2
-	XT2             fp.E2
+	XT8, YT8, lamT8 fp2.E2
+	XT4, YT4, lamT4 fp2.E2
+	XT2             fp2.E2
 
 	// Degree-7 Miller loop precomputed constants:
 	// S7 (7-torsion), [2]S7, [3]S7 and their slopes
-	XS7, YS7             fp.E2
-	lamDbl1               fp.E2 // tangent slope at S7
-	X2S, Y2S              fp.E2 // [2]S7
-	lamAdd1               fp.E2 // chord slope S7, [2]S7
-	X3S, Y3S              fp.E2 // [3]S7
-	lamDbl2               fp.E2 // tangent slope at [3]S7
-	X6S fp.E2 // [6]S7 = -S7 (X only, Y is -YS7)
+	XS7, YS7 fp2.E2
+	lamDbl1  fp2.E2 // tangent slope at S7
+	X2S, Y2S fp2.E2 // [2]S7
+	lamAdd1  fp2.E2 // chord slope S7, [2]S7
+	X3S, Y3S fp2.E2 // [3]S7
+	lamDbl2  fp2.E2 // tangent slope at [3]S7
+	X6S      fp2.E2 // [6]S7 = -S7 (X only, Y is -YS7)
 
-	three fp.E2
+	three fp2.E2
 )
 
 func initSMTConstants() {
 	initOnce.Do(initCurveParams)
 
-	amd := new(fp.E2).Sub(&curveParams.A, &curveParams.D)
-	apd := new(fp.E2).Add(&curveParams.A, &curveParams.D)
+	amd := new(fp2.E2).Sub(&curveParams.A, &curveParams.D)
+	apd := new(fp2.E2).Add(&curveParams.A, &curveParams.D)
 
-	var Amg, Bmg fp.E2
+	var Amg, Bmg fp2.E2
 	Amg.Add(apd, apd)
 	Bmg.Square(amd)
 	three.A0.SetUint64(3)
 
-	var threeInv fp.E2
+	var threeInv fp2.E2
 	threeInv.Inverse(&three)
 	Adiv3.Mul(&Amg, &threeInv)
 
-	var A2div3 fp.E2
+	var A2div3 fp2.E2
 	A2div3.Square(&Amg)
 	A2div3.Mul(&A2div3, &threeInv)
 	aW.Sub(&Bmg, &A2div3)
 
 	// 8-torsion T8 (from Sage)
-	XT8.A0.SetBigInt(bigFromDec("56495978839162271580189242121432892911"))
-	XT8.A1.SetBigInt(bigFromDec("5498965435856981984649943052775033891"))
-	YT8.A0.SetBigInt(bigFromDec("110406726416374112713382695534503225009"))
-	YT8.A1.SetBigInt(bigFromDec("41382232403199127624659984993520567989"))
-	lamT8.A0.SetBigInt(bigFromDec("144442680182921669228377474261162789491"))
-	lamT8.A1.SetBigInt(bigFromDec("78866152311824694793607513268751646905"))
+	XT8.A0.SetString("56495978839162271580189242121432892911")
+	XT8.A1.SetString("5498965435856981984649943052775033891")
+	YT8.A0.SetString("110406726416374112713382695534503225009")
+	YT8.A1.SetString("41382232403199127624659984993520567989")
+	lamT8.A0.SetString("144442680182921669228377474261162789491")
+	lamT8.A1.SetString("78866152311824694793607513268751646905")
 
-	XT4.A0.SetBigInt(bigFromDec("170141183460469230329734754113958182802"))
-	XT4.A1.SetBigInt(bigFromDec("71655106159052621705899442625265968763"))
-	YT4.A0.SetBigInt(bigFromDec("80492913427091964959665255396056504603"))
-	YT4.A1.SetBigInt(bigFromDec("170141183460469223319972006104328568185"))
+	XT4.A0.SetString("170141183460469230329734754113958182802")
+	XT4.A1.SetString("71655106159052621705899442625265968763")
+	YT4.A0.SetString("80492913427091964959665255396056504603")
+	YT4.A1.SetString("170141183460469223319972006104328568185")
 	lamT4.A0.SetZero()
-	lamT4.A1.SetBigInt(bigFromDec("2"))
+	lamT4.A1.SetString("2")
 
-	XT2.A0.SetBigInt(bigFromDec("2803905099203851845846"))
-	XT2.A1.SetBigInt(bigFromDec("26830971142363988319888418465352168201"))
+	XT2.A0.SetString("2803905099203851845846")
+	XT2.A1.SetString("26830971142363988319888418465352168201")
 
 	// 7-torsion S7 and Miller loop intermediates (from Sage)
-	XS7.A0.SetBigInt(bigFromDec("170000906615246946031520731709186440780"))
-	XS7.A1.SetBigInt(bigFromDec("94692800017046438403892332000427881085"))
-	YS7.A0.SetBigInt(bigFromDec("113074451165823784128958858701762803038"))
-	YS7.A1.SetBigInt(bigFromDec("4234707370120948597958144423972584168"))
+	XS7.A0.SetString("170000906615246946031520731709186440780")
+	XS7.A1.SetString("94692800017046438403892332000427881085")
+	YS7.A0.SetString("113074451165823784128958858701762803038")
+	YS7.A1.SetString("4234707370120948597958144423972584168")
 
-	lamDbl1.A0.SetBigInt(bigFromDec("149197531863252711357534985748910785211"))
-	lamDbl1.A1.SetBigInt(bigFromDec("106728816833063046549591444245799095908"))
+	lamDbl1.A0.SetString("149197531863252711357534985748910785211")
+	lamDbl1.A1.SetString("106728816833063046549591444245799095908")
 
-	X2S.A0.SetBigInt(bigFromDec("54301625611251160727403361627257607395"))
-	X2S.A1.SetBigInt(bigFromDec("98913730175858778379537234706939518181"))
-	Y2S.A0.SetBigInt(bigFromDec("64618348732980520867047493319367212765"))
-	Y2S.A1.SetBigInt(bigFromDec("143042194917927051863741747443651007549"))
+	X2S.A0.SetString("54301625611251160727403361627257607395")
+	X2S.A1.SetString("98913730175858778379537234706939518181")
+	Y2S.A0.SetString("64618348732980520867047493319367212765")
+	Y2S.A1.SetString("143042194917927051863741747443651007549")
 
-	lamAdd1.A0.SetBigInt(bigFromDec("119059155663838527172282288165420875213"))
-	lamAdd1.A1.SetBigInt(bigFromDec("2641556124042940121879682364519729700"))
+	lamAdd1.A0.SetString("119059155663838527172282288165420875213")
+	lamAdd1.A1.SetString("2641556124042940121879682364519729700")
 
-	X3S.A0.SetBigInt(bigFromDec("156066723560704030263055387453284139745"))
-	X3S.A1.SetBigInt(bigFromDec("27481310916039459192906723051714574829"))
-	Y3S.A0.SetBigInt(bigFromDec("61002583797480505059569858362795384815"))
-	Y3S.A1.SetBigInt(bigFromDec("161099302072925642522021123389456975814"))
+	X3S.A0.SetString("156066723560704030263055387453284139745")
+	X3S.A1.SetString("27481310916039459192906723051714574829")
+	Y3S.A0.SetString("61002583797480505059569858362795384815")
+	Y3S.A1.SetString("161099302072925642522021123389456975814")
 
-	lamDbl2.A0.SetBigInt(bigFromDec("58231718181463545180414387022826039618"))
-	lamDbl2.A1.SetBigInt(bigFromDec("21100793565021504938029727675157445515"))
+	lamDbl2.A0.SetString("58231718181463545180414387022826039618")
+	lamDbl2.A1.SetString("21100793565021504938029727675157445515")
 
 	X6S.Set(&XS7) // [6]S7 = -S7, same X
 }
 
-func edwardsToWeierstrass(p *PointAffine) (X, Y fp.E2) {
-	var one fp.E2
+func edwardsToWeierstrass(p *PointAffine) (X, Y fp2.E2) {
+	var one fp2.E2
 	one.SetOne()
-	var onePlusY, oneMinusY, prod, inv, invOMY, invX fp.E2
+	var onePlusY, oneMinusY, prod, inv, invOMY, invX fp2.E2
 	onePlusY.Add(&one, &p.Y)
 	oneMinusY.Sub(&one, &p.Y)
 	prod.Mul(&p.X, &oneMinusY)
@@ -109,8 +109,8 @@ func edwardsToWeierstrass(p *PointAffine) (X, Y fp.E2) {
 	invOMY.Mul(&inv, &p.X)
 	invX.Mul(&inv, &oneMinusY)
 
-	amd := new(fp.E2).Sub(&curveParams.A, &curveParams.D)
-	var u, w fp.E2
+	amd := new(fp2.E2).Sub(&curveParams.A, &curveParams.D)
+	var u, w fp2.E2
 	u.Mul(amd, &onePlusY)
 	u.Mul(&u, &invOMY)
 	w.Add(&invX, &invX)
@@ -119,8 +119,8 @@ func edwardsToWeierstrass(p *PointAffine) (X, Y fp.E2) {
 	return
 }
 
-// IsInSubGroupNaive tests subgroup membership by scalar multiplication by N.
-func (p *PointAffine) IsInSubGroupNaive() bool {
+// isInSubGroupNaive tests subgroup membership by scalar multiplication by N.
+func (p *PointAffine) isInSubGroupNaive() bool {
 	initOnce.Do(initCurveParams)
 	var res PointAffine
 	res.ScalarMultiplication(p, &curveParams.Order)
@@ -133,7 +133,7 @@ func (p *PointAffine) ClearCofactor() *PointAffine {
 	return p
 }
 
-// IsInSubGroupTate tests subgroup membership using the divide-and-pair
+// isInSubGroupTate tests subgroup membership using the divide-and-pair
 // method: 0 divisions + octic check (2-part) + septic check (7-part).
 //
 // Octic: degree-8 Miller function on Weierstrass via 3-step doubling chain,
@@ -142,7 +142,7 @@ func (p *PointAffine) ClearCofactor() *PointAffine {
 //
 // Septic: degree-7 Miller function via precomputed 2-step Miller loop
 // (7 = 111₂), then z^((p-1)/7) and Norm check.
-func (p *PointAffine) IsInSubGroupTate() bool {
+func (p *PointAffine) isInSubGroupTate() bool {
 	smtInitOnce.Do(initSMTConstants)
 	initOnce.Do(initCurveParams)
 
@@ -154,21 +154,21 @@ func (p *PointAffine) IsInSubGroupTate() bool {
 
 	// === Octic check (2^3-part of cofactor) ===
 	// f8 = g1^4 * g2^2 * g3, division-free: ell1^4 * v1^4 * ell2^2 * v2^7
-	var xd1, ell1, v1 fp.E2
+	var xd1, ell1, v1 fp2.E2
 	xd1.Sub(&XQ, &XT8)
 	ell1.Mul(&lamT8, &xd1)
 	ell1.Sub(&YQ, &ell1)
 	ell1.Sub(&ell1, &YT8)
 	v1.Sub(&XQ, &XT4)
 
-	var xd2, ell2, v2 fp.E2
+	var xd2, ell2, v2 fp2.E2
 	xd2.Sub(&XQ, &XT4)
 	ell2.Mul(&lamT4, &xd2)
 	ell2.Sub(&YQ, &ell2)
 	ell2.Sub(&ell2, &YT4)
 	v2.Sub(&XQ, &XT2)
 
-	var ell14, v14, ell22, v27, f8 fp.E2
+	var ell14, v14, ell22, v27, f8 fp2.E2
 	ell14.Square(&ell1)
 	ell14.Square(&ell14)
 	v14.Square(&v1)
@@ -184,7 +184,7 @@ func (p *PointAffine) IsInSubGroupTate() bool {
 	f8.Mul(&f8, &v27)
 
 	// Frobenius: z^(p-1) = conj(z)/z, then (p+1)/8 = 2^124 squarings
-	var conjF8, f8Inv, z8 fp.E2
+	var conjF8, f8Inv, z8 fp2.E2
 	conjF8.Conjugate(&f8)
 	f8Inv.Inverse(&f8)
 	z8.Mul(&conjF8, &f8Inv)
@@ -202,9 +202,9 @@ func (p *PointAffine) IsInSubGroupTate() bool {
 	// Step 1a: double S7 → [2]S7
 	//   ell = Y_Q - Y_{S7} - lamDbl1*(X_Q - X_{S7})
 	//   v   = X_Q - X_{[2]S7}
-	var ellD1, vD1 fp.E2
+	var ellD1, vD1 fp2.E2
 	{
-		var tmp fp.E2
+		var tmp fp2.E2
 		tmp.Sub(&XQ, &XS7)
 		ellD1.Mul(&lamDbl1, &tmp)
 		ellD1.Sub(&YQ, &ellD1)
@@ -215,9 +215,9 @@ func (p *PointAffine) IsInSubGroupTate() bool {
 	// Step 1b: add [2]S7 + S7 → [3]S7
 	//   ell = Y_Q - Y_{[2]S7} - lamAdd1*(X_Q - X_{[2]S7})
 	//   v   = X_Q - X_{[3]S7}
-	var ellA1, vA1 fp.E2
+	var ellA1, vA1 fp2.E2
 	{
-		var tmp fp.E2
+		var tmp fp2.E2
 		tmp.Sub(&XQ, &X2S)
 		ellA1.Mul(&lamAdd1, &tmp)
 		ellA1.Sub(&YQ, &ellA1)
@@ -228,9 +228,9 @@ func (p *PointAffine) IsInSubGroupTate() bool {
 	// Step 2a: double [3]S7 → [6]S7
 	//   ell = Y_Q - Y_{[3]S7} - lamDbl2*(X_Q - X_{[3]S7})
 	//   v   = X_Q - X_{[6]S7}
-	var ellD2, vD2 fp.E2
+	var ellD2, vD2 fp2.E2
 	{
-		var tmp fp.E2
+		var tmp fp2.E2
 		tmp.Sub(&XQ, &X3S)
 		ellD2.Mul(&lamDbl2, &tmp)
 		ellD2.Sub(&YQ, &ellD2)
@@ -240,19 +240,19 @@ func (p *PointAffine) IsInSubGroupTate() bool {
 
 	// Step 2b: add [6]S7 + S7 → O (vertical line, since [6]S7 = -S7)
 	//   g = X_Q - X_{S7}, v_O = 1
-	var gVert fp.E2
+	var gVert fp2.E2
 	gVert.Sub(&XQ, &XS7)
 
 	// f7 = (ellD1/vD1 * ellA1/vA1)^2 * ellD2/vD2 * gVert
 	// With inversions:
-	var vD1Inv, vA1Inv, vD2Inv fp.E2
+	var vD1Inv, vA1Inv, vD2Inv fp2.E2
 	vD1Inv.Inverse(&vD1)
 	vA1Inv.Inverse(&vA1)
 	vD2Inv.Inverse(&vD2)
 
-	var f7 fp.E2
+	var f7 fp2.E2
 	f7.Mul(&ellD1, &vD1Inv)
-	var tmp fp.E2
+	var tmp fp2.E2
 	tmp.Mul(&ellA1, &vA1Inv)
 	f7.Mul(&f7, &tmp)
 	f7.Square(&f7)
@@ -264,10 +264,15 @@ func (p *PointAffine) IsInSubGroupTate() bool {
 	// f7^((p²-1)/7) = (f7^((p-1)/7))^(p+1) = Norm(f7^((p-1)/7))
 	// Since 7 | p-1, (p-1)/7 is integer. And z^(p+1) = Norm(z) for z ∈ Fp².
 	// Uses a 131-step addition chain for (p-1)/7.
-	var f7exp fp.E2
+	var f7exp fp2.E2
 	f7exp.ExpBySeptic(&f7) // f7^((p-1)/7)
-	var norm fp.E2
+	var norm fp2.E2
 	norm.Conjugate(&f7exp)
 	norm.Mul(&norm, &f7exp) // Norm = conj * z = |z|^2
 	return norm.IsOne()
+}
+
+// IsInSubGroup tests subgroup membership using the fastest available method.
+func (p *PointAffine) IsInSubGroup() bool {
+	return p.isInSubGroupTate()
 }

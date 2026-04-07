@@ -79,18 +79,18 @@ func edwardsToPorninMontgomery(p *PointAffine) (u, w fp.Element) {
 	return
 }
 
-// IsInSubGroupNaive tests subgroup membership by scalar multiplication by ℓ.
-func (p *PointAffine) IsInSubGroupNaive() bool {
+// isInSubGroupNaive tests subgroup membership by scalar multiplication by ℓ.
+func (p *PointAffine) isInSubGroupNaive() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 	var res PointAffine
 	res.ScalarMultiplication(p, &subgroupOrder)
 	return res.IsZero()
 }
 
-// IsInSubGroupPornin tests subgroup membership using Pornin's method
+// isInSubGroupPornin tests subgroup membership using Pornin's method
 // (https://eprint.iacr.org/2022/1164):
 // 1 halving + 1 Legendre symbol, division-free with scaling factor e.
-func (p *PointAffine) IsInSubGroupPornin() bool {
+func (p *PointAffine) isInSubGroupPornin() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 
 	if isLowOrder(&p.X, &p.Y) {
@@ -147,4 +147,9 @@ func (p *PointAffine) IsInSubGroupPornin() bool {
 
 	// === Second halving ===
 	return u.Legendre() == 1
+}
+
+// IsInSubGroup tests subgroup membership using the fastest available method.
+func (p *PointAffine) IsInSubGroup() bool {
+	return p.isInSubGroupPornin()
 }

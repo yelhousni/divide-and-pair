@@ -5,15 +5,15 @@ import (
 	"math/big"
 	"testing"
 
-	fp "github.com/yelhousni/divide-and-pair/fourq/fp2"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
+	fp2 "github.com/yelhousni/divide-and-pair/fourq/fp2"
 )
 
 func GenBigInt() gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
 		var s big.Int
-		var b [fp.Bytes]byte
+		var b [fp2.Bytes]byte
 		_, err := rand.Read(b[:])
 		if err != nil {
 			panic(err)
@@ -33,7 +33,7 @@ func TestReceiverIsOperand(t *testing.T) {
 
 	properties.Property("Add affine: receiver as operand", prop.ForAll(
 		func() bool {
-			params := GetFourQCurve()
+			params := curveParameters()
 			var p1, p2, p3 PointAffine
 			p1.Set(&params.Base)
 			p2.Set(&params.Base)
@@ -52,7 +52,7 @@ func TestReceiverIsOperand(t *testing.T) {
 
 	properties.Property("Double affine: receiver as operand", prop.ForAll(
 		func() bool {
-			params := GetFourQCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.Set(&params.Base)
 			p2.Set(&params.Base)
@@ -64,7 +64,7 @@ func TestReceiverIsOperand(t *testing.T) {
 
 	properties.Property("Neg affine: receiver as operand", prop.ForAll(
 		func() bool {
-			params := GetFourQCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.Set(&params.Base)
 			p2.Neg(&p1)
@@ -75,7 +75,7 @@ func TestReceiverIsOperand(t *testing.T) {
 
 	properties.Property("ScalarMul affine: receiver as operand", prop.ForAll(
 		func() bool {
-			params := GetFourQCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.Set(&params.Base)
 			p2.Set(&params.Base)
@@ -99,8 +99,8 @@ func TestField(t *testing.T) {
 
 	properties.Property("MulByA(x) should match Mul(x, curve.A)", prop.ForAll(
 		func(s big.Int) bool {
-			params := GetFourQCurve()
-			var z1, z2 fp.E2
+			params := curveParameters()
+			var z1, z2 fp2.E2
 			z1.A0.SetBigInt(&s)
 			z1.A1.SetZero()
 			z2.Mul(&z1, &params.A)
@@ -123,11 +123,10 @@ func TestOps(t *testing.T) {
 
 	properties.Property("P+0=P", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetFourQCurve()
+			params := curveParameters()
 			var p1, p2, zero PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
-			zero.X.SetZero()
-			zero.Y.SetOne()
+			zero.SetInfinity()
 			p2.Add(&p1, &zero)
 			return p2.IsOnCurve() && p2.Equal(&p1)
 		},
@@ -136,7 +135,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("P+(-P)=O", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetFourQCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p2.Neg(&p1)
@@ -148,7 +147,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("P+P=2*P", prop.ForAll(
 		func(s big.Int) bool {
-			params := GetFourQCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s)
 			p2.Set(&p1)
@@ -161,7 +160,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("[a]P+[b]P = [a+b]P", prop.ForAll(
 		func(s1, s2 big.Int) bool {
-			params := GetFourQCurve()
+			params := curveParameters()
 			var p1, p2, p3 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p2.ScalarMultiplication(&params.Base, &s2)
@@ -176,7 +175,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("[5]P=[2][2]P+P", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetFourQCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p2.Double(&p1)
@@ -190,7 +189,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("[0]P = O", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetFourQCurve()
+			params := curveParameters()
 			var p1 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p1.ScalarMultiplication(&p1, big.NewInt(0))
@@ -201,7 +200,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("[1]P = P", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetFourQCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p2.ScalarMultiplication(&p1, big.NewInt(1))
@@ -212,7 +211,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("[-1]P = Neg(P)", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetFourQCurve()
+			params := curveParameters()
 			var p1, p2 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p2.ScalarMultiplication(&p1, big.NewInt(-1))
@@ -224,7 +223,7 @@ func TestOps(t *testing.T) {
 
 	properties.Property("[order]P = O", prop.ForAll(
 		func(s1 big.Int) bool {
-			params := GetFourQCurve()
+			params := curveParameters()
 			var p1 PointAffine
 			p1.ScalarMultiplication(&params.Base, &s1)
 			p1.ScalarMultiplication(&p1, &params.Order)

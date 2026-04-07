@@ -3,12 +3,12 @@ package fourq
 import (
 	"math/big"
 
-	fp "github.com/yelhousni/divide-and-pair/fourq/fp2"
+	fp2 "github.com/yelhousni/divide-and-pair/fourq/fp2"
 )
 
 // PointAffine is a point on FourQ in affine coordinates over Fp2.
 type PointAffine struct {
-	X, Y fp.E2
+	X, Y fp2.E2
 }
 
 // Set sets p to p1 and returns p.
@@ -23,7 +23,14 @@ func (p *PointAffine) Equal(p1 *PointAffine) bool {
 	return p.X.Equal(&p1.X) && p.Y.Equal(&p1.Y)
 }
 
-// IsZero returns true if p is the identity (0, 1).
+// SetInfinity sets p to the identity point, encoded as (0, 1).
+func (p *PointAffine) SetInfinity() *PointAffine {
+	p.X.SetZero()
+	p.Y.SetOne()
+	return p
+}
+
+// IsZero returns true if p is the identity point, encoded as (0, 1).
 func (p *PointAffine) IsZero() bool {
 	return p.X.IsZero() && p.Y.IsOne()
 }
@@ -32,7 +39,7 @@ func (p *PointAffine) IsZero() bool {
 func (p *PointAffine) IsOnCurve() bool {
 	initOnce.Do(initCurveParams)
 
-	var x2, y2, lhs, rhs, tmp fp.E2
+	var x2, y2, lhs, rhs, tmp fp2.E2
 
 	x2.Square(&p.X)
 	y2.Square(&p.Y)
@@ -62,7 +69,7 @@ func (p *PointAffine) Neg(p1 *PointAffine) *PointAffine {
 func (p *PointAffine) Add(p1, p2 *PointAffine) *PointAffine {
 	initOnce.Do(initCurveParams)
 
-	var x1y2, y1x2, y1y2, x1x2, dxy fp.E2
+	var x1y2, y1x2, y1y2, x1x2, dxy fp2.E2
 
 	x1y2.Mul(&p1.X, &p2.Y)
 	y1x2.Mul(&p1.Y, &p2.X)
@@ -71,7 +78,7 @@ func (p *PointAffine) Add(p1, p2 *PointAffine) *PointAffine {
 	dxy.Mul(&curveParams.D, &x1x2)
 	dxy.Mul(&dxy, &y1y2)
 
-	var numX, numY, denX, denY fp.E2
+	var numX, numY, denX, denY fp2.E2
 	numX.Add(&x1y2, &y1x2)
 
 	// numY = y1y2 - a*x1x2 = y1y2 + x1x2 (since a = -1)
@@ -98,8 +105,7 @@ func (p *PointAffine) Double(p1 *PointAffine) *PointAffine {
 // ScalarMultiplication computes scalar * p1.
 func (p *PointAffine) ScalarMultiplication(p1 *PointAffine, scalar *big.Int) *PointAffine {
 	var res PointAffine
-	res.X.SetZero()
-	res.Y.SetOne() // identity
+	res.SetInfinity()
 
 	s := new(big.Int).Set(scalar)
 	if s.Sign() < 0 {

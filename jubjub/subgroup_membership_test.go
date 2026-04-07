@@ -7,7 +7,7 @@ import (
 )
 
 func TestCurveParams(t *testing.T) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 
 	if !params.Base.IsOnCurve() {
 		t.Fatal("base point not on curve")
@@ -27,45 +27,45 @@ func TestCurveParams(t *testing.T) {
 }
 
 func TestSubgroupNaive(t *testing.T) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 
-	if !params.Base.IsInSubGroupNaive() {
+	if !params.Base.isInSubGroupNaive() {
 		t.Fatal("base point should be in subgroup")
 	}
 
 	var id PointAffine
 	id.X.SetZero()
 	id.Y.SetOne()
-	if !id.IsInSubGroupNaive() {
+	if !id.isInSubGroupNaive() {
 		t.Fatal("identity should be in subgroup")
 	}
 
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
-	if !p.IsInSubGroupNaive() {
+	if !p.isInSubGroupNaive() {
 		t.Fatal("k*Base should be in subgroup")
 	}
 }
 
 func TestSubgroupPornin(t *testing.T) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 
-	if !params.Base.IsInSubGroupPornin() {
+	if !params.Base.isInSubGroupPornin() {
 		t.Fatal("base point should be in subgroup (Pornin)")
 	}
 }
 
 func TestSubgroupOcticExp(t *testing.T) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 
-	if !params.Base.IsInSubGroupOcticExp() {
+	if !params.Base.isInSubGroupOcticExp() {
 		t.Fatal("base point should be in subgroup (OcticExp)")
 	}
 }
 
 func TestSubgroupAgreement(t *testing.T) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 
 	nTests := 50
 	for i := 0; i < nTests; i++ {
@@ -73,9 +73,9 @@ func TestSubgroupAgreement(t *testing.T) {
 		var p PointAffine
 		p.ScalarMultiplication(&params.Base, k)
 
-		naive := p.IsInSubGroupNaive()
-		pornin := p.IsInSubGroupPornin()
-		octic := p.IsInSubGroupOcticExp()
+		naive := p.isInSubGroupNaive()
+		pornin := p.isInSubGroupPornin()
+		octic := p.isInSubGroupOcticExp()
 
 		if !naive || !pornin || !octic {
 			t.Fatalf("subgroup point k*Base: naive=%v pornin=%v octic=%v", naive, pornin, octic)
@@ -98,9 +98,9 @@ func TestSubgroupAgreement(t *testing.T) {
 		p.ScalarMultiplication(&params.Base, k)
 		q.Add(&p, &nPt)
 
-		naive := q.IsInSubGroupNaive()
-		pornin := q.IsInSubGroupPornin()
-		octic := q.IsInSubGroupOcticExp()
+		naive := q.isInSubGroupNaive()
+		pornin := q.isInSubGroupPornin()
+		octic := q.isInSubGroupOcticExp()
 
 		if naive || pornin || octic {
 			t.Fatalf("non-subgroup point k*Base+N: naive=%v pornin=%v octic=%v", naive, pornin, octic)
@@ -116,7 +116,7 @@ func TestLowOrderPoints(t *testing.T) {
 	var id PointAffine
 	id.X.SetZero()
 	id.Y.SetOne()
-	if !id.IsInSubGroupPornin() {
+	if !id.isInSubGroupPornin() {
 		t.Fatal("identity should be in subgroup (Pornin)")
 	}
 
@@ -124,7 +124,7 @@ func TestLowOrderPoints(t *testing.T) {
 	n.X.SetZero()
 	n.Y.SetOne()
 	n.Y.Neg(&n.Y)
-	if n.IsInSubGroupPornin() {
+	if n.isInSubGroupPornin() {
 		t.Fatal("(0,-1) should NOT be in subgroup (Pornin)")
 	}
 
@@ -133,7 +133,7 @@ func TestLowOrderPoints(t *testing.T) {
 	t4.X.Set(&sqrtMinOne)
 	t4.Y.SetZero()
 	if t4.IsOnCurve() {
-		if t4.IsInSubGroupPornin() {
+		if t4.isInSubGroupPornin() {
 			t.Fatal("(i,0) should NOT be in subgroup (Pornin)")
 		}
 	}
@@ -142,37 +142,37 @@ func TestLowOrderPoints(t *testing.T) {
 // Benchmarks
 
 func BenchmarkIsInSubGroupNaive(b *testing.B) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.IsInSubGroupNaive()
+		p.isInSubGroupNaive()
 	}
 }
 
 func BenchmarkIsInSubGroupPornin(b *testing.B) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.IsInSubGroupPornin()
+		p.isInSubGroupPornin()
 	}
 }
 
 func BenchmarkIsInSubGroupOcticExp(b *testing.B) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.IsInSubGroupOcticExp()
+		p.isInSubGroupOcticExp()
 	}
 }

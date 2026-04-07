@@ -21,17 +21,17 @@ var (
 	subgroupOrder    big.Int
 
 	// Octic constants (Weierstrass model for degree-8 Miller function)
-	aW          fp.Element // Weierstrass a coefficient
-	three       fp.Element
-	octicXT8    fp.Element // 8-torsion point X on Weierstrass
-	octicYT8    fp.Element // 8-torsion point Y on Weierstrass
-	octicLamT8  fp.Element // tangent slope at T8
-	octicXT4    fp.Element // 4-torsion point X on Weierstrass
-	octicYT4    fp.Element // 4-torsion point Y on Weierstrass
-	octicLamT4  fp.Element // tangent slope at T4
-	octicXT2    fp.Element // 2-torsion point X on Weierstrass
-	Adiv3       fp.Element // A/3 for Edwards-to-Weierstrass conversion
-	octicExp    big.Int    // (p-1)/8
+	aW         fp.Element // Weierstrass a coefficient
+	three      fp.Element
+	octicXT8   fp.Element // 8-torsion point X on Weierstrass
+	octicYT8   fp.Element // 8-torsion point Y on Weierstrass
+	octicLamT8 fp.Element // tangent slope at T8
+	octicXT4   fp.Element // 4-torsion point X on Weierstrass
+	octicYT4   fp.Element // 4-torsion point Y on Weierstrass
+	octicLamT4 fp.Element // tangent slope at T4
+	octicXT2   fp.Element // 2-torsion point X on Weierstrass
+	Adiv3      fp.Element // A/3 for Edwards-to-Weierstrass conversion
+	octicExp   big.Int    // (p-1)/8
 )
 
 func initSubgroupConstants() {
@@ -207,17 +207,17 @@ func halvePornin(u, w *fp.Element, e *fp.Element) (uOut, wOut fp.Element, eOut f
 	return uOut, wOut, eOut, true
 }
 
-// IsInSubGroupNaive tests subgroup membership by scalar multiplication by ℓ.
-func (p *PointAffine) IsInSubGroupNaive() bool {
+// isInSubGroupNaive tests subgroup membership by scalar multiplication by ℓ.
+func (p *PointAffine) isInSubGroupNaive() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 	var res PointAffine
 	res.ScalarMultiplication(p, &subgroupOrder)
 	return res.IsZero()
 }
 
-// IsInSubGroupPornin tests subgroup membership using Pornin's method:
+// isInSubGroupPornin tests subgroup membership using Pornin's method:
 // 2 halvings + 1 Legendre symbol (3rd halving check).
-func (p *PointAffine) IsInSubGroupPornin() bool {
+func (p *PointAffine) isInSubGroupPornin() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 
 	if isLowOrder(&p.X, &p.Y) {
@@ -252,14 +252,14 @@ func edwardsToWeierstrass(p *PointAffine) (X, Y fp.Element) {
 	return
 }
 
-// IsInSubGroupOcticExp tests subgroup membership using the divide-and-pair
+// isInSubGroupOcticExp tests subgroup membership using the divide-and-pair
 // method with 0 halvings + 1 octic residuosity check.
 //
 // Since d = gcd(8, p-1) = 8 for the JubJub field (p ≡ 1 mod 8), no halvings
 // are needed. The degree-8 Miller function f_{8,T₈}(Q) is evaluated on the
 // Weierstrass model using a 3-step doubling chain T₈ → T₄ → T₂ → ∞, and
 // the octic symbol χ₈(f) = f^((p-1)/8) is checked via exponentiation.
-func (p *PointAffine) IsInSubGroupOcticExp() bool {
+func (p *PointAffine) isInSubGroupOcticExp() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 
 	if isLowOrder(&p.X, &p.Y) {
@@ -301,7 +301,7 @@ func (p *PointAffine) IsInSubGroupOcticExp() bool {
 	ell14.Square(&ell1)
 	ell14.Square(&ell14) // ell1⁴
 	v14.Square(&v1)
-	v14.Square(&v14) // v1⁴
+	v14.Square(&v14)    // v1⁴
 	ell22.Square(&ell2) // ell2²
 	v27.Square(&v2)
 	v27.Mul(&v27, &v2) // v2³
@@ -316,4 +316,9 @@ func (p *PointAffine) IsInSubGroupOcticExp() bool {
 	var chi fp.Element
 	chi.Exp(result, &octicExp)
 	return chi.IsOne()
+}
+
+// IsInSubGroup tests subgroup membership using the fastest available method.
+func (p *PointAffine) IsInSubGroup() bool {
+	return p.isInSubGroupOcticExp()
 }

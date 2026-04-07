@@ -7,7 +7,20 @@ import (
 )
 
 func TestCurveParams(t *testing.T) {
-	params := GetFourQCurve()
+	params := curveParameters()
+	g := Generators()
+	a, d := CurveCoefficients()
+	order := Order()
+
+	if !g.Equal(&params.Base) {
+		t.Fatal("Generators() returned unexpected base point")
+	}
+	if !a.Equal(&params.A) || !d.Equal(&params.D) {
+		t.Fatal("CurveCoefficients() returned unexpected coefficients")
+	}
+	if order.Cmp(&params.Order) != 0 {
+		t.Fatal("Order() returned unexpected subgroup order")
+	}
 
 	if !params.Base.IsOnCurve() {
 		t.Fatal("base point not on curve")
@@ -30,8 +43,7 @@ func TestCurveParams(t *testing.T) {
 
 func TestIdentity(t *testing.T) {
 	var id PointAffine
-	id.X.SetZero()
-	id.Y.SetOne()
+	id.SetInfinity()
 	if !id.IsZero() {
 		t.Fatal("(0,1) should be identity")
 	}
@@ -41,10 +53,9 @@ func TestIdentity(t *testing.T) {
 }
 
 func TestAddIdentity(t *testing.T) {
-	params := GetFourQCurve()
+	params := curveParameters()
 	var id, res PointAffine
-	id.X.SetZero()
-	id.Y.SetOne()
+	id.SetInfinity()
 	res.Add(&params.Base, &id)
 	if !res.Equal(&params.Base) {
 		t.Fatal("P + O != P")
@@ -52,7 +63,7 @@ func TestAddIdentity(t *testing.T) {
 }
 
 func TestDoubleConsistency(t *testing.T) {
-	params := GetFourQCurve()
+	params := curveParameters()
 	var d1, d2 PointAffine
 	d1.Double(&params.Base)
 	d2.Add(&params.Base, &params.Base)
@@ -62,7 +73,7 @@ func TestDoubleConsistency(t *testing.T) {
 }
 
 func TestNeg(t *testing.T) {
-	params := GetFourQCurve()
+	params := curveParameters()
 	var neg, res PointAffine
 	neg.Neg(&params.Base)
 	res.Add(&params.Base, &neg)
@@ -72,7 +83,7 @@ func TestNeg(t *testing.T) {
 }
 
 func TestScalarMul(t *testing.T) {
-	params := GetFourQCurve()
+	params := curveParameters()
 
 	// [1]*Base = Base
 	var res PointAffine
@@ -98,16 +109,15 @@ func TestScalarMul(t *testing.T) {
 }
 
 func TestSubgroupNaive(t *testing.T) {
-	params := GetFourQCurve()
+	params := curveParameters()
 
-	if !params.Base.IsInSubGroupNaive() {
+	if !params.Base.isInSubGroupNaive() {
 		t.Fatal("base point should be in subgroup")
 	}
 
 	var id PointAffine
-	id.X.SetZero()
-	id.Y.SetOne()
-	if !id.IsInSubGroupNaive() {
+	id.SetInfinity()
+	if !id.isInSubGroupNaive() {
 		t.Fatal("identity should be in subgroup")
 	}
 
@@ -115,34 +125,38 @@ func TestSubgroupNaive(t *testing.T) {
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
-	if !p.IsInSubGroupNaive() {
+	if !p.isInSubGroupNaive() {
 		t.Fatal("k*Base should be in subgroup")
 	}
 
 	// Non-subgroup point: (0, -1) has order 2
 	var n PointAffine
-	n.X.SetZero()
-	n.Y.SetOne()
+	n.SetInfinity()
 	n.Y.Neg(&n.Y)
-	if n.IsOnCurve() && n.IsInSubGroupNaive() {
+	if n.IsOnCurve() && n.isInSubGroupNaive() {
 		t.Fatal("(0,-1) should NOT be in subgroup")
 	}
 }
 
-func TestSubgroupTate(t *testing.T) {
-	params := GetFourQCurve()
+func TestIsInSubGroupTate(t *testing.T) {
+	params := curveParameters()
 
 	// Base point should be in subgroup
-	if !params.Base.IsInSubGroupTate() {
+	if !params.Base.isInSubGroupTate() {
 		t.Fatal("base point should be in subgroup (Tate)")
+	}
+	if !params.Base.IsInSubGroup() {
+		t.Fatal("base point should be in subgroup")
 	}
 
 	// Identity
 	var id PointAffine
-	id.X.SetZero()
-	id.Y.SetOne()
-	if !id.IsInSubGroupTate() {
+	id.SetInfinity()
+	if !id.isInSubGroupTate() {
 		t.Fatal("identity should be in subgroup (Tate)")
+	}
+	if !id.IsInSubGroup() {
+		t.Fatal("identity should be in subgroup")
 	}
 
 	// Random subgroup points
@@ -152,40 +166,43 @@ func TestSubgroupTate(t *testing.T) {
 		var p PointAffine
 		p.ScalarMultiplication(&params.Base, k)
 
-		naive := p.IsInSubGroupNaive()
-		tate := p.IsInSubGroupTate()
+		naive := p.isInSubGroupNaive()
+		tate := p.isInSubGroupTate()
+		defaultCheck := p.IsInSubGroup()
 
-		if !naive || !tate {
-			t.Fatalf("subgroup point: naive=%v tate=%v", naive, tate)
+		if !naive || !tate || !defaultCheck {
+			t.Fatalf("subgroup point: naive=%v tate=%v default=%v", naive, tate, defaultCheck)
 		}
 	}
 
 	// Non-subgroup: (0, -1)
 	var n PointAffine
-	n.X.SetZero()
-	n.Y.SetOne()
+	n.SetInfinity()
 	n.Y.Neg(&n.Y)
-	if n.IsOnCurve() && n.IsInSubGroupTate() {
+	if n.IsOnCurve() && n.isInSubGroupTate() {
 		t.Fatal("(0,-1) should NOT be in subgroup (Tate)")
+	}
+	if n.IsOnCurve() && n.IsInSubGroup() {
+		t.Fatal("(0,-1) should NOT be in subgroup")
 	}
 
 	t.Logf("tested %d subgroup points + non-subgroup: Naive and Tate agree", nTests)
 }
 
 func BenchmarkIsInSubGroupTate(b *testing.B) {
-	params := GetFourQCurve()
+	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.IsInSubGroupTate()
+		p.isInSubGroupTate()
 	}
 }
 
 func TestClearCofactor(t *testing.T) {
-	params := GetFourQCurve()
+	params := curveParameters()
 
 	// [392]*Base should still be on curve and in subgroup
 	var cleared PointAffine
@@ -194,14 +211,13 @@ func TestClearCofactor(t *testing.T) {
 	if !cleared.IsOnCurve() {
 		t.Fatal("[392]*Base not on curve")
 	}
-	if !cleared.IsInSubGroupNaive() {
+	if !cleared.isInSubGroupNaive() {
 		t.Fatal("[392]*Base should be in subgroup")
 	}
 
 	// [392]*identity = identity
 	var id PointAffine
-	id.X.SetZero()
-	id.Y.SetOne()
+	id.SetInfinity()
 	id.ClearCofactor()
 	if !id.IsZero() {
 		t.Fatal("[392]*O != O")
@@ -213,13 +229,13 @@ func TestClearCofactor(t *testing.T) {
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
 	p.ClearCofactor()
-	if !p.IsInSubGroupNaive() {
+	if !p.isInSubGroupNaive() {
 		t.Fatal("[392]*k*Base should be in subgroup")
 	}
 }
 
 func BenchmarkClearCofactor(b *testing.B) {
-	params := GetFourQCurve()
+	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
@@ -232,19 +248,18 @@ func BenchmarkClearCofactor(b *testing.B) {
 	}
 }
 
-func TestSubgroupEndo(t *testing.T) {
-	params := GetFourQCurve()
+func TestIsInSubGroupEndo(t *testing.T) {
+	params := curveParameters()
 
 	// Base point should be in subgroup
-	if !params.Base.IsInSubGroupEndo() {
+	if !params.Base.isInSubGroupEndo() {
 		t.Fatal("base point should be in subgroup (Endo)")
 	}
 
 	// Identity
 	var id PointAffine
-	id.X.SetZero()
-	id.Y.SetOne()
-	if !id.IsInSubGroupEndo() {
+	id.SetInfinity()
+	if !id.isInSubGroupEndo() {
 		t.Fatal("identity should be in subgroup (Endo)")
 	}
 
@@ -255,17 +270,16 @@ func TestSubgroupEndo(t *testing.T) {
 		var p PointAffine
 		p.ScalarMultiplication(&params.Base, k)
 
-		if !p.IsInSubGroupEndo() {
+		if !p.isInSubGroupEndo() {
 			t.Fatalf("subgroup point not detected by endo test (i=%d)", i)
 		}
 	}
 
 	// Non-subgroup point: (0, -1) has order 2
 	var n PointAffine
-	n.X.SetZero()
-	n.Y.SetOne()
+	n.SetInfinity()
 	n.Y.Neg(&n.Y)
-	if n.IsOnCurve() && n.IsInSubGroupEndo() {
+	if n.IsOnCurve() && n.isInSubGroupEndo() {
 		t.Fatal("(0,-1) should NOT be in subgroup (Endo)")
 	}
 
@@ -273,7 +287,7 @@ func TestSubgroupEndo(t *testing.T) {
 }
 
 func TestEndomorphismEigenvalues(t *testing.T) {
-	params := GetFourQCurve()
+	params := curveParameters()
 
 	// Verify ψ(G) == [λ_ψ]G and φ(G) == [λ_φ]G on the base point
 	var psiG, phiG, expected PointAffine
@@ -294,31 +308,31 @@ func TestEndomorphismEigenvalues(t *testing.T) {
 }
 
 func BenchmarkIsInSubGroupEndo(b *testing.B) {
-	params := GetFourQCurve()
+	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.IsInSubGroupEndo()
+		p.isInSubGroupEndo()
 	}
 }
 
 func BenchmarkIsInSubGroupNaive(b *testing.B) {
-	params := GetFourQCurve()
+	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.IsInSubGroupNaive()
+		p.isInSubGroupNaive()
 	}
 }
 
 func BenchmarkScalarMul(b *testing.B) {
-	params := GetFourQCurve()
+	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 

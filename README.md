@@ -26,6 +26,7 @@ Companion code for the article *"Divide-and-Pair: Faster subgroup membership tes
 - **QuarticExp** (Curve25519): same as Quartic but uses addition-chain exponentiation for the quartic symbol.
 - **OcticExp** (JubJub): 0 halvings + 1 octic residuosity check. Since d = gcd(8, p−1) = 8 for the BLS12-381 scalar field (p ≡ 1 mod 8), no halvings are needed. The degree-8 Miller function is evaluated on the Weierstrass model via a 3-step doubling chain, and the octic symbol χ₈(f) = f^((p−1)/8) is checked division-free.
 - **Tate** (FourQ): 0 divisions + octic check (Frobenius: 124 Fp² squarings) + septic check (degree-7 Miller function with precomputed intermediates + 125-bit Fp² exp + Norm).
+- **Endomorphism** (FourQ): subgroup membership from the FourQ ψ and φ endomorphisms, reducing the order check to a 4-dimensional multi-scalar relation with short scalars.
 
 ## Benchmarks
 
@@ -49,8 +50,9 @@ Apple M5, Go 1.25, `go test -bench=.`:
 ### FourQ
 | Method | Time | Speedup vs Naive |
 |--------|------|-----------------|
-| Naive | 712 µs | 1× |
-| **Tate (octic + septic)** | **7 µs** | **100×** |
+| Naive | 463 µs | 1× |
+| Endomorphism | 130 µs | 3.6× |
+| **Tate (octic + septic)** | **4.3 µs** | **109×** |
 
 ### Curve448
 | Method | Time | Speedup vs Naive |
@@ -69,34 +71,31 @@ Apple M5, Go 1.25, `go test -bench=.`:
 ```go
 import "github.com/yelhousni/divide-and-pair/curve25519"
 
-params := curve25519.GetEdwardsCurve()
+g := curve25519.Generators()
 var p curve25519.PointAffine
-p.ScalarMultiplication(&params.Base, k)
+p.ScalarMultiplication(&g, k)
 
-p.IsInSubGroupNaive()      // scalar mult by ℓ
-p.IsInSubGroupPornin()     // halvings + Legendre
-p.IsInSubGroupQuartic()    // 1 halving + quartic symbol (GCD)
-p.IsInSubGroupQuarticExp() // 1 halving + quartic symbol (exp)
+p.IsInSubGroup()           // 1 halving + quartic symbol (GCD)
 ```
 
 ```go
 import "github.com/yelhousni/divide-and-pair/jubjub"
 
-params := jubjub.GetEdwardsCurve()
+g := jubjub.Generators()
 var p jubjub.PointAffine
-p.ScalarMultiplication(&params.Base, k)
+p.ScalarMultiplication(&g, k)
 
-p.IsInSubGroupOcticExp()   // 0 halvings + octic symbol (exp)
+p.IsInSubGroup()           // 0 halvings + octic symbol (exp)
 ```
 
 ```go
 import "github.com/yelhousni/divide-and-pair/fourq"
 
-params := fourq.GetFourQCurve()
+g := fourq.Generators()
 var p fourq.PointAffine
-p.ScalarMultiplication(&params.Base, k)
+p.ScalarMultiplication(&g, k)
 
-p.IsInSubGroupTate()       // octic (Frobenius) + septic check
+p.IsInSubGroup()           // octic (Frobenius) + septic check
 ```
 
 ## References

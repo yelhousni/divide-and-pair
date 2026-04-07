@@ -77,8 +77,8 @@ func edwardsToPorninMontgomery(p *PointAffine) (u, w fp.Element) {
 	var one fp.Element
 	one.SetOne()
 	oneMinusY.Sub(&one, &p.Y)
-	prod.Mul(&p.X, &oneMinusY)   // x * (1-y)
-	inv.Inverse(&prod)            // 1 / (x * (1-y))
+	prod.Mul(&p.X, &oneMinusY) // x * (1-y)
+	inv.Inverse(&prod)         // 1 / (x * (1-y))
 
 	// 1/(1-y) = inv * x,  1/x = inv * (1-y)
 	var invOneMinusY, invX fp.Element
@@ -104,15 +104,15 @@ func quarticCriterion(uR, wR *fp.Element, symbolFn func(*fp.Element) uint8) bool
 	return symbolFn(&f) == 0
 }
 
-// IsInSubGroupNaive tests subgroup membership by scalar multiplication by ℓ.
-func (p *PointAffine) IsInSubGroupNaive() bool {
+// isInSubGroupNaive tests subgroup membership by scalar multiplication by ℓ.
+func (p *PointAffine) isInSubGroupNaive() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 	var res PointAffine
 	res.ScalarMultiplication(p, &subgroupOrder)
 	return res.IsZero()
 }
 
-// IsInSubGroupPornin tests subgroup membership using Pornin's method
+// isInSubGroupPornin tests subgroup membership using Pornin's method
 // (https://eprint.iacr.org/2022/1164):
 // 2 halvings + 1 Legendre symbol (3rd halving check).
 //
@@ -120,7 +120,7 @@ func (p *PointAffine) IsInSubGroupNaive() bool {
 // a scaling factor e such that we work on the isomorphic curve
 // Curve(A*e², B*e⁴). When up is not a QR in inverse psi1, we switch
 // to an isomorphic curve instead of computing B'/up.
-func (p *PointAffine) IsInSubGroupPornin() bool {
+func (p *PointAffine) isInSubGroupPornin() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 
 	if isLowOrder(&p.X, &p.Y) {
@@ -206,9 +206,9 @@ func (p *PointAffine) IsInSubGroupPornin() bool {
 	return u.Legendre() == 1
 }
 
-// IsInSubGroupQuartic tests subgroup membership using our improved method:
+// isInSubGroupQuartic tests subgroup membership using our improved method:
 // 1 halving + 1 quartic symbol (Weilert GCD).
-func (p *PointAffine) IsInSubGroupQuartic() bool {
+func (p *PointAffine) isInSubGroupQuartic() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 
 	if isLowOrder(&p.X, &p.Y) {
@@ -284,9 +284,9 @@ func (p *PointAffine) IsInSubGroupQuartic() bool {
 	return f.QuarticSymbol() == 0
 }
 
-// IsInSubGroupQuarticExp tests subgroup membership using:
+// isInSubGroupQuarticExp tests subgroup membership using:
 // 1 halving + 1 quartic symbol (addition chain exponentiation).
-func (p *PointAffine) IsInSubGroupQuarticExp() bool {
+func (p *PointAffine) isInSubGroupQuarticExp() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 
 	if isLowOrder(&p.X, &p.Y) {
@@ -356,4 +356,9 @@ func (p *PointAffine) IsInSubGroupQuarticExp() bool {
 	f.Square(&wShift)
 	f.Mul(&f, &u)
 	return f.QuarticSymbolExp() == 0
+}
+
+// IsInSubGroup tests subgroup membership using the fastest available method.
+func (p *PointAffine) IsInSubGroup() bool {
+	return p.isInSubGroupQuartic()
 }

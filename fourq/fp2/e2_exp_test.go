@@ -1,4 +1,4 @@
-package fp
+package fp2
 
 import (
 	"math/big"

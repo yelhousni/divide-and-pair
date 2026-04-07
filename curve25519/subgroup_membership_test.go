@@ -9,7 +9,7 @@ import (
 )
 
 func TestCurveParams(t *testing.T) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 
 	// Base point should be on the curve
 	if !params.Base.IsOnCurve() {
@@ -32,10 +32,10 @@ func TestCurveParams(t *testing.T) {
 }
 
 func TestSubgroupNaive(t *testing.T) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 
 	// Base point is in subgroup
-	if !params.Base.IsInSubGroupNaive() {
+	if !params.Base.isInSubGroupNaive() {
 		t.Fatal("base point should be in subgroup")
 	}
 
@@ -43,7 +43,7 @@ func TestSubgroupNaive(t *testing.T) {
 	var id PointAffine
 	id.X.SetZero()
 	id.Y.SetOne()
-	if !id.IsInSubGroupNaive() {
+	if !id.isInSubGroupNaive() {
 		t.Fatal("identity should be in subgroup")
 	}
 
@@ -51,31 +51,31 @@ func TestSubgroupNaive(t *testing.T) {
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
-	if !p.IsInSubGroupNaive() {
+	if !p.isInSubGroupNaive() {
 		t.Fatal("k*Base should be in subgroup")
 	}
 }
 
 func TestSubgroupPornin(t *testing.T) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 
 	// Base point
-	if !params.Base.IsInSubGroupPornin() {
+	if !params.Base.isInSubGroupPornin() {
 		t.Fatal("base point should be in subgroup (Pornin)")
 	}
 }
 
 func TestSubgroupQuartic(t *testing.T) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 
 	// Base point
-	if !params.Base.IsInSubGroupQuartic() {
+	if !params.Base.isInSubGroupQuartic() {
 		t.Fatal("base point should be in subgroup (quartic)")
 	}
 }
 
 func TestSubgroupAgreement(t *testing.T) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 
 	// Test subgroup points: k * Base (always in subgroup since Base has order ell)
 	nTests := 50
@@ -84,9 +84,9 @@ func TestSubgroupAgreement(t *testing.T) {
 		var p PointAffine
 		p.ScalarMultiplication(&params.Base, k)
 
-		naive := p.IsInSubGroupNaive()
-		pornin := p.IsInSubGroupPornin()
-		quartic := p.IsInSubGroupQuartic()
+		naive := p.isInSubGroupNaive()
+		pornin := p.isInSubGroupPornin()
+		quartic := p.isInSubGroupQuartic()
 
 		if !naive || !pornin || !quartic {
 			t.Fatalf("subgroup point k*Base: naive=%v pornin=%v quartic=%v", naive, pornin, quartic)
@@ -111,9 +111,9 @@ func TestSubgroupAgreement(t *testing.T) {
 		p.ScalarMultiplication(&params.Base, k)
 		q.Add(&p, &nPt)
 
-		naive := q.IsInSubGroupNaive()
-		pornin := q.IsInSubGroupPornin()
-		quartic := q.IsInSubGroupQuartic()
+		naive := q.isInSubGroupNaive()
+		pornin := q.isInSubGroupPornin()
+		quartic := q.isInSubGroupQuartic()
 
 		if naive || pornin || quartic {
 			t.Fatalf("non-subgroup point k*Base+N: naive=%v pornin=%v quartic=%v", naive, pornin, quartic)
@@ -152,10 +152,10 @@ func TestLowOrderPoints(t *testing.T) {
 	var id PointAffine
 	id.X.SetZero()
 	id.Y.SetOne()
-	if !id.IsInSubGroupPornin() {
+	if !id.isInSubGroupPornin() {
 		t.Fatal("identity should be in subgroup (Pornin)")
 	}
-	if !id.IsInSubGroupQuartic() {
+	if !id.isInSubGroupQuartic() {
 		t.Fatal("identity should be in subgroup (quartic)")
 	}
 
@@ -164,10 +164,10 @@ func TestLowOrderPoints(t *testing.T) {
 	n.X.SetZero()
 	n.Y.SetOne()
 	n.Y.Neg(&n.Y)
-	if n.IsInSubGroupPornin() {
+	if n.isInSubGroupPornin() {
 		t.Fatal("(0,-1) should NOT be in subgroup (Pornin)")
 	}
-	if n.IsInSubGroupQuartic() {
+	if n.isInSubGroupQuartic() {
 		t.Fatal("(0,-1) should NOT be in subgroup (quartic)")
 	}
 
@@ -177,10 +177,10 @@ func TestLowOrderPoints(t *testing.T) {
 	t4.Y.SetZero()
 	if t4.IsOnCurve() {
 		// (i, 0): check a*i^2 + 0 = 1 + d*i^2*0 => a*(-1) = 1 => -a = 1 => a = -1. Yes!
-		if t4.IsInSubGroupPornin() {
+		if t4.isInSubGroupPornin() {
 			t.Fatal("(i,0) should NOT be in subgroup (Pornin)")
 		}
-		if t4.IsInSubGroupQuartic() {
+		if t4.isInSubGroupQuartic() {
 			t.Fatal("(i,0) should NOT be in subgroup (quartic)")
 		}
 	}
@@ -189,49 +189,49 @@ func TestLowOrderPoints(t *testing.T) {
 // Benchmarks
 
 func BenchmarkIsInSubGroupNaive(b *testing.B) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.IsInSubGroupNaive()
+		p.isInSubGroupNaive()
 	}
 }
 
 func BenchmarkIsInSubGroupPornin(b *testing.B) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.IsInSubGroupPornin()
+		p.isInSubGroupPornin()
 	}
 }
 
 func BenchmarkIsInSubGroupQuarticExp(b *testing.B) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.IsInSubGroupQuarticExp()
+		p.isInSubGroupQuarticExp()
 	}
 }
 
 func BenchmarkIsInSubGroupQuartic(b *testing.B) {
-	params := GetEdwardsCurve()
+	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.IsInSubGroupQuartic()
+		p.isInSubGroupQuartic()
 	}
 }
