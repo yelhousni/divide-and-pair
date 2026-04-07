@@ -3,7 +3,7 @@ package fourq
 import (
 	"math/big"
 
-	fp "github.com/yelhousni/divide-and-pair/fourq/fp"
+	fp "github.com/yelhousni/divide-and-pair/fourq/fp2"
 )
 
 // PointAffine is a point on FourQ in affine coordinates over Fp2.

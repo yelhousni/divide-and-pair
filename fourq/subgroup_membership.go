@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"sync"
 
-	fp "github.com/yelhousni/divide-and-pair/fourq/fp"
+	fp "github.com/yelhousni/divide-and-pair/fourq/fp2"
 )
 
 var (

@@ -232,6 +232,79 @@ func BenchmarkClearCofactor(b *testing.B) {
 	}
 }
 
+func TestSubgroupEndo(t *testing.T) {
+	params := GetFourQCurve()
+
+	// Base point should be in subgroup
+	if !params.Base.IsInSubGroupEndo() {
+		t.Fatal("base point should be in subgroup (Endo)")
+	}
+
+	// Identity
+	var id PointAffine
+	id.X.SetZero()
+	id.Y.SetOne()
+	if !id.IsInSubGroupEndo() {
+		t.Fatal("identity should be in subgroup (Endo)")
+	}
+
+	// Random subgroup points: endo test should agree with naive
+	nTests := 10
+	for i := 0; i < nTests; i++ {
+		k, _ := rand.Int(rand.Reader, &params.Order)
+		var p PointAffine
+		p.ScalarMultiplication(&params.Base, k)
+
+		if !p.IsInSubGroupEndo() {
+			t.Fatalf("subgroup point not detected by endo test (i=%d)", i)
+		}
+	}
+
+	// Non-subgroup point: (0, -1) has order 2
+	var n PointAffine
+	n.X.SetZero()
+	n.Y.SetOne()
+	n.Y.Neg(&n.Y)
+	if n.IsOnCurve() && n.IsInSubGroupEndo() {
+		t.Fatal("(0,-1) should NOT be in subgroup (Endo)")
+	}
+
+	t.Logf("tested %d subgroup + 1 non-subgroup: all correct", nTests)
+}
+
+func TestEndomorphismEigenvalues(t *testing.T) {
+	params := GetFourQCurve()
+
+	// Verify ψ(G) == [λ_ψ]G and φ(G) == [λ_φ]G on the base point
+	var psiG, phiG, expected PointAffine
+
+	psiG.Psi(&params.Base)
+	expected.ScalarMultiplication(&params.Base, &lambdaPsi)
+	if !psiG.Equal(&expected) {
+		t.Fatal("ψ(G) ≠ [λ_ψ]G")
+	}
+
+	phiG.Phi(&params.Base)
+	expected.ScalarMultiplication(&params.Base, &lambdaPhi)
+	if !phiG.Equal(&expected) {
+		t.Fatal("φ(G) ≠ [λ_φ]G")
+	}
+
+	t.Log("eigenvalue verification passed")
+}
+
+func BenchmarkIsInSubGroupEndo(b *testing.B) {
+	params := GetFourQCurve()
+	k, _ := rand.Int(rand.Reader, &params.Order)
+	var p PointAffine
+	p.ScalarMultiplication(&params.Base, k)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		p.IsInSubGroupEndo()
+	}
+}
+
 func BenchmarkIsInSubGroupNaive(b *testing.B) {
 	params := GetFourQCurve()
 	k, _ := rand.Int(rand.Reader, &params.Order)

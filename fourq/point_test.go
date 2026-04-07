@@ -5,7 +5,7 @@ import (
 	"math/big"
 	"testing"
 
-	fp "github.com/yelhousni/divide-and-pair/fourq/fp"
+	fp "github.com/yelhousni/divide-and-pair/fourq/fp2"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
 )
