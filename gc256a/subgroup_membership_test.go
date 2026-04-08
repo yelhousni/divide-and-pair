@@ -4,6 +4,9 @@ import (
 	"crypto/rand"
 	"math/big"
 	"testing"
+
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/prop"
 )
 
 func TestCurveParams(t *testing.T) {
@@ -26,78 +29,108 @@ func TestCurveParams(t *testing.T) {
 	}
 }
 
-func TestSubgroupNaive(t *testing.T) {
-	params := curveParameters()
+func TestSubgroupMembership(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 50
 
-	if !params.Base.isInSubGroupNaive() {
-		t.Fatal("base point should be in subgroup")
-	}
+	properties := gopter.NewProperties(parameters)
+	genS := GenBigInt()
 
-	var id PointAffine
-	id.X.SetZero()
-	id.Y.SetOne()
-	if !id.isInSubGroupNaive() {
-		t.Fatal("identity should be in subgroup")
-	}
+	properties.Property("[k]G is in subgroup (naive)", prop.ForAll(
+		func(s big.Int) bool {
+			params := curveParameters()
+			var p PointAffine
+			p.ScalarMultiplication(&params.Base, &s)
+			return p.isInSubGroupNaive()
+		},
+		genS,
+	))
 
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-	if !p.isInSubGroupNaive() {
-		t.Fatal("k*Base should be in subgroup")
-	}
-}
+	properties.Property("[k]G is in subgroup (Pornin)", prop.ForAll(
+		func(s big.Int) bool {
+			params := curveParameters()
+			var p PointAffine
+			p.ScalarMultiplication(&params.Base, &s)
+			return p.isInSubGroupPornin()
+		},
+		genS,
+	))
 
-func TestSubgroupPornin(t *testing.T) {
-	params := curveParameters()
+	properties.Property("[k]G is in subgroup (quartic)", prop.ForAll(
+		func(s big.Int) bool {
+			params := curveParameters()
+			var p PointAffine
+			p.ScalarMultiplication(&params.Base, &s)
+			return p.isInSubGroupQuartic()
+		},
+		genS,
+	))
 
-	if !params.Base.isInSubGroupPornin() {
-		t.Fatal("base point should be in subgroup (Pornin)")
-	}
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
 func TestSubgroupAgreement(t *testing.T) {
-	params := curveParameters()
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 50
 
-	nTests := 50
-	for i := 0; i < nTests; i++ {
-		k, _ := rand.Int(rand.Reader, &params.Order)
-		var p PointAffine
-		p.ScalarMultiplication(&params.Base, k)
+	properties := gopter.NewProperties(parameters)
+	genS := GenBigInt()
 
-		naive := p.isInSubGroupNaive()
-		pornin := p.isInSubGroupPornin()
+	properties.Property("all methods agree on subgroup points", prop.ForAll(
+		func(s big.Int) bool {
+			params := curveParameters()
+			var p PointAffine
+			p.ScalarMultiplication(&params.Base, &s)
 
-		if !naive || !pornin {
-			t.Fatalf("subgroup point k*Base: naive=%v pornin=%v", naive, pornin)
-		}
-	}
-	t.Logf("tested %d subgroup points: both methods agree (all true)", nTests)
+			naive := p.isInSubGroupNaive()
+			pornin := p.isInSubGroupPornin()
+			quartic := p.isInSubGroupQuartic()
 
-	var nPt PointAffine
-	nPt.X.SetZero()
-	nPt.Y.SetOne()
-	nPt.Y.Neg(&nPt.Y)
+			return naive && pornin && quartic
+		},
+		genS,
+	))
 
-	nNonSub := 0
-	for i := 0; i < nTests; i++ {
-		k, _ := rand.Int(rand.Reader, &params.Order)
-		if k.Sign() == 0 {
-			continue
-		}
-		var p, q PointAffine
-		p.ScalarMultiplication(&params.Base, k)
-		q.Add(&p, &nPt)
+	properties.Property("all methods reject order-2 offset", prop.ForAll(
+		func(s big.Int) bool {
+			params := curveParameters()
+			if s.Sign() == 0 {
+				return true
+			}
+			var nPt, p, q PointAffine
+			nPt.X.SetZero()
+			nPt.Y.SetOne()
+			nPt.Y.Neg(&nPt.Y)
 
-		naive := q.isInSubGroupNaive()
-		pornin := q.isInSubGroupPornin()
+			p.ScalarMultiplication(&params.Base, &s)
+			q.Add(&p, &nPt)
 
-		if naive || pornin {
-			t.Fatalf("non-subgroup point k*Base+N: naive=%v pornin=%v", naive, pornin)
-		}
-		nNonSub++
-	}
-	t.Logf("tested %d non-subgroup points: both methods agree (all false)", nNonSub)
+			return !q.isInSubGroupNaive() && !q.isInSubGroupPornin() && !q.isInSubGroupQuartic()
+		},
+		genS,
+	))
+
+	properties.Property("all methods reject order-4 offset", prop.ForAll(
+		func(s big.Int) bool {
+			params := curveParameters()
+			if s.Sign() == 0 {
+				return true
+			}
+			var order4Pt, p, q PointAffine
+			order4Pt.X.SetOne()
+			order4Pt.Y.SetZero()
+
+			p.ScalarMultiplication(&params.Base, &s)
+			q.Add(&p, &order4Pt)
+
+			return !q.isInSubGroupPornin() && !q.isInSubGroupQuartic()
+		},
+		genS,
+	))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
 func TestLowOrderPoints(t *testing.T) {
@@ -136,76 +169,6 @@ func TestLowOrderPoints(t *testing.T) {
 			t.Fatal("(-1,0) should NOT be in subgroup (Pornin)")
 		}
 	}
-}
-
-func TestSubgroupQuarticAgreement(t *testing.T) {
-	params := curveParameters()
-
-	nTests := 50
-	for i := 0; i < nTests; i++ {
-		k, _ := rand.Int(rand.Reader, &params.Order)
-		var p PointAffine
-		p.ScalarMultiplication(&params.Base, k)
-
-		pornin := p.isInSubGroupPornin()
-		quartic := p.isInSubGroupQuartic()
-
-		if !pornin || !quartic {
-			t.Fatalf("subgroup point: pornin=%v quartic=%v", pornin, quartic)
-		}
-	}
-	t.Logf("tested %d subgroup points: both methods agree (all true)", nTests)
-
-	// Non-subgroup: order-2 offset
-	var order2Pt PointAffine
-	order2Pt.X.SetZero()
-	order2Pt.Y.SetOne()
-	order2Pt.Y.Neg(&order2Pt.Y)
-
-	nNonSub := 0
-	for i := 0; i < nTests; i++ {
-		k, _ := rand.Int(rand.Reader, &params.Order)
-		if k.Sign() == 0 {
-			continue
-		}
-		var p, q PointAffine
-		p.ScalarMultiplication(&params.Base, k)
-		q.Add(&p, &order2Pt)
-
-		pornin := q.isInSubGroupPornin()
-		quartic := q.isInSubGroupQuartic()
-
-		if pornin || quartic {
-			t.Fatalf("non-subgroup (order-2): pornin=%v quartic=%v", pornin, quartic)
-		}
-		nNonSub++
-	}
-	t.Logf("tested %d non-subgroup points (order-2): all false", nNonSub)
-
-	// Non-subgroup: order-4 offset
-	var order4Pt PointAffine
-	order4Pt.X.SetOne()
-	order4Pt.Y.SetZero()
-
-	nNonSub = 0
-	for i := 0; i < nTests; i++ {
-		k, _ := rand.Int(rand.Reader, &params.Order)
-		if k.Sign() == 0 {
-			continue
-		}
-		var p, q PointAffine
-		p.ScalarMultiplication(&params.Base, k)
-		q.Add(&p, &order4Pt)
-
-		pornin := q.isInSubGroupPornin()
-		quartic := q.isInSubGroupQuartic()
-
-		if pornin || quartic {
-			t.Fatalf("non-subgroup (order-4): pornin=%v quartic=%v", pornin, quartic)
-		}
-		nNonSub++
-	}
-	t.Logf("tested %d non-subgroup points (order-4): all false", nNonSub)
 }
 
 // Benchmarks

@@ -39,8 +39,8 @@ func (z *Element) SqrtFilippo(x *Element) *Element {
 	// For p = 2^255-19 (p ≡ 5 mod 8):
 	// candidate = x^((p+3)/8) = x * x^((p-5)/8) = x * Pow22523(x)
 	var p58, candidate, check field.Element
-	p58.Pow22523(&fe)                // x^((p-5)/8)
-	candidate.Multiply(&fe, &p58)    // x^((p+3)/8)
+	p58.Pow22523(&fe)             // x^((p-5)/8)
+	candidate.Multiply(&fe, &p58) // x^((p+3)/8)
 
 	// Verify: candidate² == x or candidate² == -x
 	check.Square(&candidate)
@@ -81,9 +81,9 @@ func (z *Element) LegendreFilippo() int {
 	// Use: x^((p-5)/8) = Pow22523(x). Exponent = (p-5)/8 = 2^252 - 3.
 	// x^(2^254 - 10) = x^(4*(2^252-3) + 2) = (x^((p-5)/8))^4 * x^2
 	var p58, t field.Element
-	p58.Pow22523(&fe) // x^((p-5)/8) = x^(2^252-3)
-	t.Square(&p58)    // x^(2*(2^252-3))
-	t.Square(&t)      // x^(4*(2^252-3)) = x^(2^254-12)
+	p58.Pow22523(&fe)   // x^((p-5)/8) = x^(2^252-3)
+	t.Square(&p58)      // x^(2*(2^252-3))
+	t.Square(&t)        // x^(4*(2^252-3)) = x^(2^254-12)
 	t.Multiply(&t, &fe) // x^(2^254-11)
 	t.Multiply(&t, &fe) // x^(2^254-10) = x^((p-1)/2)
 

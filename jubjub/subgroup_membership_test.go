@@ -4,6 +4,9 @@ import (
 	"crypto/rand"
 	"math/big"
 	"testing"
+
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/prop"
 )
 
 func TestCurveParams(t *testing.T) {
@@ -26,88 +29,94 @@ func TestCurveParams(t *testing.T) {
 	}
 }
 
-func TestSubgroupNaive(t *testing.T) {
-	params := curveParameters()
+func TestSubgroupMembership(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 50
 
-	if !params.Base.isInSubGroupNaive() {
-		t.Fatal("base point should be in subgroup")
-	}
+	properties := gopter.NewProperties(parameters)
+	genS := GenBigInt()
 
-	var id PointAffine
-	id.X.SetZero()
-	id.Y.SetOne()
-	if !id.isInSubGroupNaive() {
-		t.Fatal("identity should be in subgroup")
-	}
+	properties.Property("[k]G is in subgroup (naive)", prop.ForAll(
+		func(s big.Int) bool {
+			params := curveParameters()
+			var p PointAffine
+			p.ScalarMultiplication(&params.Base, &s)
+			return p.isInSubGroupNaive()
+		},
+		genS,
+	))
 
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-	if !p.isInSubGroupNaive() {
-		t.Fatal("k*Base should be in subgroup")
-	}
-}
+	properties.Property("[k]G is in subgroup (Pornin)", prop.ForAll(
+		func(s big.Int) bool {
+			params := curveParameters()
+			var p PointAffine
+			p.ScalarMultiplication(&params.Base, &s)
+			return p.isInSubGroupPornin()
+		},
+		genS,
+	))
 
-func TestSubgroupPornin(t *testing.T) {
-	params := curveParameters()
+	properties.Property("[k]G is in subgroup (octic exp)", prop.ForAll(
+		func(s big.Int) bool {
+			params := curveParameters()
+			var p PointAffine
+			p.ScalarMultiplication(&params.Base, &s)
+			return p.isInSubGroupOcticExp()
+		},
+		genS,
+	))
 
-	if !params.Base.isInSubGroupPornin() {
-		t.Fatal("base point should be in subgroup (Pornin)")
-	}
-}
-
-func TestSubgroupOcticExp(t *testing.T) {
-	params := curveParameters()
-
-	if !params.Base.isInSubGroupOcticExp() {
-		t.Fatal("base point should be in subgroup (OcticExp)")
-	}
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
 func TestSubgroupAgreement(t *testing.T) {
-	params := curveParameters()
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 50
 
-	nTests := 50
-	for i := 0; i < nTests; i++ {
-		k, _ := rand.Int(rand.Reader, &params.Order)
-		var p PointAffine
-		p.ScalarMultiplication(&params.Base, k)
+	properties := gopter.NewProperties(parameters)
+	genS := GenBigInt()
 
-		naive := p.isInSubGroupNaive()
-		pornin := p.isInSubGroupPornin()
-		octic := p.isInSubGroupOcticExp()
+	properties.Property("all methods agree on subgroup points", prop.ForAll(
+		func(s big.Int) bool {
+			params := curveParameters()
+			var p PointAffine
+			p.ScalarMultiplication(&params.Base, &s)
 
-		if !naive || !pornin || !octic {
-			t.Fatalf("subgroup point k*Base: naive=%v pornin=%v octic=%v", naive, pornin, octic)
-		}
-	}
-	t.Logf("tested %d subgroup points: all 3 methods agree (all true)", nTests)
+			naive := p.isInSubGroupNaive()
+			pornin := p.isInSubGroupPornin()
+			octic := p.isInSubGroupOcticExp()
 
-	var nPt PointAffine
-	nPt.X.SetZero()
-	nPt.Y.SetOne()
-	nPt.Y.Neg(&nPt.Y)
+			return naive && pornin && octic
+		},
+		genS,
+	))
 
-	nNonSub := 0
-	for i := 0; i < nTests; i++ {
-		k, _ := rand.Int(rand.Reader, &params.Order)
-		if k.Sign() == 0 {
-			continue
-		}
-		var p, q PointAffine
-		p.ScalarMultiplication(&params.Base, k)
-		q.Add(&p, &nPt)
+	properties.Property("all methods reject non-subgroup points", prop.ForAll(
+		func(s big.Int) bool {
+			params := curveParameters()
+			if s.Sign() == 0 {
+				return true
+			}
+			var nPt, p, q PointAffine
+			nPt.X.SetZero()
+			nPt.Y.SetOne()
+			nPt.Y.Neg(&nPt.Y)
 
-		naive := q.isInSubGroupNaive()
-		pornin := q.isInSubGroupPornin()
-		octic := q.isInSubGroupOcticExp()
+			p.ScalarMultiplication(&params.Base, &s)
+			q.Add(&p, &nPt)
 
-		if naive || pornin || octic {
-			t.Fatalf("non-subgroup point k*Base+N: naive=%v pornin=%v octic=%v", naive, pornin, octic)
-		}
-		nNonSub++
-	}
-	t.Logf("tested %d non-subgroup points: all 3 methods agree (all false)", nNonSub)
+			naive := q.isInSubGroupNaive()
+			pornin := q.isInSubGroupPornin()
+			octic := q.isInSubGroupOcticExp()
+
+			return !naive && !pornin && !octic
+		},
+		genS,
+	))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
 func TestLowOrderPoints(t *testing.T) {
