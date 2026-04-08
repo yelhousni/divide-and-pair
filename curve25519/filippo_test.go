@@ -15,9 +15,10 @@ func TestFilippoAgreement(t *testing.T) {
 		pornin := p.isInSubGroupPornin()
 		porninF := p.isInSubGroupPorninFilippo()
 		quarticExpF := p.isInSubGroupQuarticExpFilippo()
+		quarticF := p.isInSubGroupQuarticFilippo()
 
-		if !pornin || !porninF || !quarticExpF {
-			t.Fatalf("subgroup: pornin=%v porninFilippo=%v quarticExpFilippo=%v", pornin, porninF, quarticExpF)
+		if !pornin || !porninF || !quarticExpF || !quarticF {
+			t.Fatalf("subgroup: pornin=%v porninFilippo=%v quarticExpFilippo=%v quarticFilippo=%v", pornin, porninF, quarticExpF, quarticF)
 		}
 	}
 	t.Log("all filippo variants agree")

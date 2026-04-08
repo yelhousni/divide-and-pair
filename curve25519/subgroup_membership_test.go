@@ -259,3 +259,15 @@ func BenchmarkIsInSubGroupQuarticExpFilippo(b *testing.B) {
 		p.isInSubGroupQuarticExpFilippo()
 	}
 }
+
+func BenchmarkIsInSubGroupQuarticFilippo(b *testing.B) {
+	params := curveParameters()
+	k, _ := rand.Int(rand.Reader, &params.Order)
+	var p PointAffine
+	p.ScalarMultiplication(&params.Base, k)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		p.isInSubGroupQuarticFilippo()
+	}
+}
