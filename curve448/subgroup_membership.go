@@ -19,7 +19,9 @@ var (
 	sqrtMinBp        fp.Element // sqrt(-B')
 	subgroupOrder    big.Int
 
-	twoFp fp.Element // precomputed constant 2 ∈ Fp
+	twoFp    fp.Element // precomputed constant 2 ∈ Fp
+	expBits  []uint64   // (p+1)/4 as raw uint64 limbs for fast bit access
+	expNBits int        // bit length of (p+1)/4
 
 	// Quartic test constants (degree-4 Tate pairing over Fp2).
 	// T4 = (uT4, wT4) is a 4-torsion point on the Montgomery curve over Fp2.
@@ -62,6 +64,17 @@ func initSubgroupConstants() {
 	subgroupOrder.Set(&curveParams.Order)
 
 	twoFp.SetUint64(2)
+
+	// Precompute (p+1)/4 as raw uint64 words for the Montgomery ladder.
+	var e big.Int
+	e.Set(fp.Modulus())
+	e.Add(&e, big.NewInt(1))
+	e.Rsh(&e, 2)
+	expNBits = e.BitLen()
+	expBits = make([]uint64, len(e.Bits()))
+	for i, w := range e.Bits() {
+		expBits[i] = uint64(w)
+	}
 
 	// Quartic test constants.
 	// These come from a 4-torsion point T4 ∈ E(Fp2) \ E(Fp) on the Montgomery curve,
@@ -382,27 +395,20 @@ func (p *PointAffine) isInSubGroupQuarticExp3() bool {
 	// Bit=0: u0' = u0²-2, u1' = u0·u1 - t
 	// Bit=1: u0' = u0·u1 - t, u1' = u1²-2
 
-	// e = (p+1)/4 as big.Int
-	var e big.Int
-	e.Set(fp.Modulus())
-	e.Add(&e, big.NewInt(1))
-	e.Rsh(&e, 2)
-
 	u0 := t // trace(g^1) = t
 	var u1 fp.Element
 	u1.Square(&t)
 	u1.Sub(&u1, &twoFp) // trace(g^2) = t²-2
 
-	for i := e.BitLen() - 2; i >= 0; i-- {
-		var prod fp.Element
+	// Montgomery ladder using precomputed bit pattern of (p+1)/4.
+	var prod fp.Element
+	for i := expNBits - 2; i >= 0; i-- {
 		prod.Mul(&u0, &u1)
-		if e.Bit(i) == 0 {
-			// u1 = u0*u1 - t, u0 = u0²-2
+		if (expBits[i/64]>>(i%64))&1 == 0 {
 			u1.Sub(&prod, &t)
 			u0.Square(&u0)
 			u0.Sub(&u0, &twoFp)
 		} else {
-			// u0 = u0*u1 - t, u1 = u1²-2
 			u0.Sub(&prod, &t)
 			u1.Square(&u1)
 			u1.Sub(&u1, &twoFp)

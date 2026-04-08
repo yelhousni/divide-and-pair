@@ -245,14 +245,20 @@ func (p *PointAffine) isInSubGroupTate() bool {
 
 	// f7 = (ellD1/vD1 * ellA1/vA1)^2 * ellD2/vD2 * gVert
 	// With inversions:
-	var vD1Inv, vA1Inv, vD2Inv fp2.E2
-	vD1Inv.Inverse(&vD1)
-	vA1Inv.Inverse(&vA1)
-	vD2Inv.Inverse(&vD2)
+	// Batch inversion: 1/(vD1*vA1*vD2) via Montgomery's trick.
+	var vD1vA1, prod3, inv3 fp2.E2
+	vD1vA1.Mul(&vD1, &vA1)         // vD1*vA1
+	prod3.Mul(&vD1vA1, &vD2)       // vD1*vA1*vD2
+	inv3.Inverse(&prod3)            // 1/(vD1*vA1*vD2)
+	var vD2Inv, vA1Inv, vD1Inv fp2.E2
+	vD2Inv.Mul(&inv3, &vD1vA1)     // 1/vD2
+	var inv12 fp2.E2
+	inv12.Mul(&inv3, &vD2)          // 1/(vD1*vA1)
+	vA1Inv.Mul(&inv12, &vD1)       // 1/vA1
+	vD1Inv.Mul(&inv12, &vA1)       // 1/vD1
 
-	var f7 fp2.E2
+	var f7, tmp fp2.E2
 	f7.Mul(&ellD1, &vD1Inv)
-	var tmp fp2.E2
 	tmp.Mul(&ellA1, &vA1Inv)
 	f7.Mul(&f7, &tmp)
 	f7.Square(&f7)
@@ -355,14 +361,20 @@ func (p *PointAffine) isInSubGroupTateExp1() bool {
 	var gVert fp2.E2
 	gVert.Sub(&XQ, &XS7)
 
-	var vD1Inv, vA1Inv, vD2Inv fp2.E2
-	vD1Inv.Inverse(&vD1)
-	vA1Inv.Inverse(&vA1)
-	vD2Inv.Inverse(&vD2)
+	// Batch inversion: 1/(vD1*vA1*vD2) via Montgomery's trick.
+	var vD1vA1, prod3, inv3 fp2.E2
+	vD1vA1.Mul(&vD1, &vA1)         // vD1*vA1
+	prod3.Mul(&vD1vA1, &vD2)       // vD1*vA1*vD2
+	inv3.Inverse(&prod3)            // 1/(vD1*vA1*vD2)
+	var vD2Inv, vA1Inv, vD1Inv fp2.E2
+	vD2Inv.Mul(&inv3, &vD1vA1)     // 1/vD2
+	var inv12 fp2.E2
+	inv12.Mul(&inv3, &vD2)          // 1/(vD1*vA1)
+	vA1Inv.Mul(&inv12, &vD1)       // 1/vA1
+	vD1Inv.Mul(&inv12, &vA1)       // 1/vD1
 
-	var f7 fp2.E2
+	var f7, tmp fp2.E2
 	f7.Mul(&ellD1, &vD1Inv)
-	var tmp fp2.E2
 	tmp.Mul(&ellA1, &vA1Inv)
 	f7.Mul(&f7, &tmp)
 	f7.Square(&f7)
@@ -462,14 +474,20 @@ func (p *PointAffine) isInSubGroupTateExp2() bool {
 	var gVert fp2.E2
 	gVert.Sub(&XQ, &XS7)
 
-	var vD1Inv, vA1Inv, vD2Inv fp2.E2
-	vD1Inv.Inverse(&vD1)
-	vA1Inv.Inverse(&vA1)
-	vD2Inv.Inverse(&vD2)
+	// Batch inversion: 1/(vD1*vA1*vD2) via Montgomery's trick.
+	var vD1vA1, prod3, inv3 fp2.E2
+	vD1vA1.Mul(&vD1, &vA1)         // vD1*vA1
+	prod3.Mul(&vD1vA1, &vD2)       // vD1*vA1*vD2
+	inv3.Inverse(&prod3)            // 1/(vD1*vA1*vD2)
+	var vD2Inv, vA1Inv, vD1Inv fp2.E2
+	vD2Inv.Mul(&inv3, &vD1vA1)     // 1/vD2
+	var inv12 fp2.E2
+	inv12.Mul(&inv3, &vD2)          // 1/(vD1*vA1)
+	vA1Inv.Mul(&inv12, &vD1)       // 1/vA1
+	vD1Inv.Mul(&inv12, &vA1)       // 1/vD1
 
-	var f7 fp2.E2
+	var f7, tmp fp2.E2
 	f7.Mul(&ellD1, &vD1Inv)
-	var tmp fp2.E2
 	tmp.Mul(&ellA1, &vA1Inv)
 	f7.Mul(&f7, &tmp)
 	f7.Square(&f7)
@@ -539,11 +557,12 @@ func (p *PointAffine) isInSubGroupTateExp3() bool {
 
 	// 124 iterations of t → t²−2 in projective form:
 	// (T, N) → (T²−2N², N²)
-	var T2, N2 fp2.Element
+	var T2, N2, twoN2 fp2.Element
 	for range 124 {
 		T2.Square(&T)
 		N2.Square(&N)
-		T.Sub(&T2, new(fp2.Element).Double(&N2))
+		twoN2.Double(&N2)
+		T.Sub(&T2, &twoN2)
 		N.Set(&N2)
 	}
 
@@ -585,14 +604,20 @@ func (p *PointAffine) isInSubGroupTateExp3() bool {
 	var gVert fp2.E2
 	gVert.Sub(&XQ, &XS7)
 
-	var vD1Inv, vA1Inv, vD2Inv fp2.E2
-	vD1Inv.Inverse(&vD1)
-	vA1Inv.Inverse(&vA1)
-	vD2Inv.Inverse(&vD2)
+	// Batch inversion: 1/(vD1*vA1*vD2) via Montgomery's trick.
+	var vD1vA1, prod3, inv3 fp2.E2
+	vD1vA1.Mul(&vD1, &vA1)         // vD1*vA1
+	prod3.Mul(&vD1vA1, &vD2)       // vD1*vA1*vD2
+	inv3.Inverse(&prod3)            // 1/(vD1*vA1*vD2)
+	var vD2Inv, vA1Inv, vD1Inv fp2.E2
+	vD2Inv.Mul(&inv3, &vD1vA1)     // 1/vD2
+	var inv12 fp2.E2
+	inv12.Mul(&inv3, &vD2)          // 1/(vD1*vA1)
+	vA1Inv.Mul(&inv12, &vD1)       // 1/vA1
+	vD1Inv.Mul(&inv12, &vA1)       // 1/vD1
 
-	var f7 fp2.E2
+	var f7, tmp fp2.E2
 	f7.Mul(&ellD1, &vD1Inv)
-	var tmp fp2.E2
 	tmp.Mul(&ellA1, &vA1Inv)
 	f7.Mul(&f7, &tmp)
 	f7.Square(&f7)
