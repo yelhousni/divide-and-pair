@@ -109,3 +109,65 @@ func (z *E2) ExpBySqrtPp1o4(x *E2) *E2 {
 
 	return z
 }
+
+// CyclotomicExpBySqrtPp1o4 is the same as ExpBySqrtPp1o4 but uses
+// CyclotomicSquare instead of Square, assuming the input is on the
+// norm-1 torus (x·x̄ = 1).
+func (z *E2) CyclotomicExpBySqrtPp1o4(x *E2) *E2 {
+	var t0, t1 E2
+
+	z.CyclotomicSquare(x)
+	z.Mul(x, z)
+
+	t0.CyclotomicSquare(z)
+	for s := 1; s < 2; s++ {
+		t0.CyclotomicSquare(&t0)
+	}
+	z.Mul(z, &t0)
+
+	t0.CyclotomicSquare(z)
+	for s := 1; s < 4; s++ {
+		t0.CyclotomicSquare(&t0)
+	}
+	z.Mul(z, &t0)
+
+	t0.CyclotomicSquare(z)
+	for s := 1; s < 8; s++ {
+		t0.CyclotomicSquare(&t0)
+	}
+	z.Mul(z, &t0)
+
+	t0.CyclotomicSquare(z)
+	for s := 1; s < 16; s++ {
+		t0.CyclotomicSquare(&t0)
+	}
+	z.Mul(z, &t0)
+
+	t0.CyclotomicSquare(z)
+	for s := 1; s < 32; s++ {
+		t0.CyclotomicSquare(&t0)
+	}
+	t0.Mul(z, &t0)
+
+	t1.CyclotomicSquare(&t0)
+	for s := 1; s < 64; s++ {
+		t1.CyclotomicSquare(&t1)
+	}
+	t1.Mul(&t0, &t1)
+
+	for range 64 {
+		t1.CyclotomicSquare(&t1)
+	}
+	t0.Mul(&t0, &t1)
+
+	for range 32 {
+		t0.CyclotomicSquare(&t0)
+	}
+	z.Mul(z, &t0)
+
+	for range 222 {
+		z.CyclotomicSquare(z)
+	}
+
+	return z
+}

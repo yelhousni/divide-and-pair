@@ -269,6 +269,343 @@ func (p *PointAffine) isInSubGroupTate() bool {
 	return septicResult.IsOne()
 }
 
+// isInSubGroupTateExp1 uses the β approach for the octic:
+// β = f8^((p+1)/8), check β.A1 == 0.
+// Generic Fp2 squarings, no inversion needed.
+func (p *PointAffine) isInSubGroupTateExp1() bool {
+	smtInitOnce.Do(initSMTConstants)
+	initOnce.Do(initCurveParams)
+
+	if p.IsZero() {
+		return true
+	}
+
+	XQ, YQ := edwardsToWeierstrass(p)
+
+	// === Octic check (β approach) ===
+	// f8 = ell1^4 * v1^4 * ell2^2 * v2^7
+	var xd1, ell1, v1 fp2.E2
+	xd1.Sub(&XQ, &XT8)
+	ell1.Mul(&lamT8, &xd1)
+	ell1.Sub(&YQ, &ell1)
+	ell1.Sub(&ell1, &YT8)
+	v1.Sub(&XQ, &XT4)
+
+	var xd2, ell2, v2 fp2.E2
+	xd2.Sub(&XQ, &XT4)
+	ell2.Mul(&lamT4, &xd2)
+	ell2.Sub(&YQ, &ell2)
+	ell2.Sub(&ell2, &YT4)
+	v2.Sub(&XQ, &XT2)
+
+	var ell14, v14, ell22, v27, f8 fp2.E2
+	ell14.Square(&ell1)
+	ell14.Square(&ell14)
+	v14.Square(&v1)
+	v14.Square(&v14)
+	ell22.Square(&ell2)
+	v27.Square(&v2)
+	v27.Mul(&v27, &v2)
+	v27.Square(&v27)
+	v27.Mul(&v27, &v2)
+
+	f8.Mul(&ell14, &v14)
+	f8.Mul(&f8, &ell22)
+	f8.Mul(&f8, &v27)
+
+	// β approach: β = f8^((p+1)/8) = f8^(2^124), check β.A1 == 0.
+	// (p+1)/8 = 2^124 for p = 2^127-1.
+	var beta fp2.E2
+	beta.Set(&f8)
+	for range 124 {
+		beta.Square(&beta)
+	}
+	if !beta.A1.IsZero() {
+		return false
+	}
+
+	// === Septic check (unchanged) ===
+	var ellD1, vD1 fp2.E2
+	{
+		var tmp fp2.E2
+		tmp.Sub(&XQ, &XS7)
+		ellD1.Mul(&lamDbl1, &tmp)
+		ellD1.Sub(&YQ, &ellD1)
+		ellD1.Sub(&ellD1, &YS7)
+		vD1.Sub(&XQ, &X2S)
+	}
+	var ellA1, vA1 fp2.E2
+	{
+		var tmp fp2.E2
+		tmp.Sub(&XQ, &X2S)
+		ellA1.Mul(&lamAdd1, &tmp)
+		ellA1.Sub(&YQ, &ellA1)
+		ellA1.Sub(&ellA1, &Y2S)
+		vA1.Sub(&XQ, &X3S)
+	}
+	var ellD2, vD2 fp2.E2
+	{
+		var tmp fp2.E2
+		tmp.Sub(&XQ, &X3S)
+		ellD2.Mul(&lamDbl2, &tmp)
+		ellD2.Sub(&YQ, &ellD2)
+		ellD2.Sub(&ellD2, &Y3S)
+		vD2.Sub(&XQ, &X6S)
+	}
+	var gVert fp2.E2
+	gVert.Sub(&XQ, &XS7)
+
+	var vD1Inv, vA1Inv, vD2Inv fp2.E2
+	vD1Inv.Inverse(&vD1)
+	vA1Inv.Inverse(&vA1)
+	vD2Inv.Inverse(&vD2)
+
+	var f7 fp2.E2
+	f7.Mul(&ellD1, &vD1Inv)
+	var tmp fp2.E2
+	tmp.Mul(&ellA1, &vA1Inv)
+	f7.Mul(&f7, &tmp)
+	f7.Square(&f7)
+	tmp.Mul(&ellD2, &vD2Inv)
+	f7.Mul(&f7, &tmp)
+	f7.Mul(&f7, &gVert)
+
+	normF7 := f7.Norm()
+	var septicResult fp2.Element
+	septicResult.ExpBySepticFp(normF7)
+	return septicResult.IsOne()
+}
+
+// isInSubGroupTateExp2 uses the g approach for the octic:
+// g = conj(f8)/f8 (on the torus), then g^((p+1)/8) = g^(2^124)
+// with cyclotomic squarings. Check result == 1.
+func (p *PointAffine) isInSubGroupTateExp2() bool {
+	smtInitOnce.Do(initSMTConstants)
+	initOnce.Do(initCurveParams)
+
+	if p.IsZero() {
+		return true
+	}
+
+	XQ, YQ := edwardsToWeierstrass(p)
+
+	// === Octic check (g approach with cyclotomic squarings) ===
+	var xd1, ell1, v1 fp2.E2
+	xd1.Sub(&XQ, &XT8)
+	ell1.Mul(&lamT8, &xd1)
+	ell1.Sub(&YQ, &ell1)
+	ell1.Sub(&ell1, &YT8)
+	v1.Sub(&XQ, &XT4)
+
+	var xd2, ell2, v2 fp2.E2
+	xd2.Sub(&XQ, &XT4)
+	ell2.Mul(&lamT4, &xd2)
+	ell2.Sub(&YQ, &ell2)
+	ell2.Sub(&ell2, &YT4)
+	v2.Sub(&XQ, &XT2)
+
+	var ell14, v14, ell22, v27, f8 fp2.E2
+	ell14.Square(&ell1)
+	ell14.Square(&ell14)
+	v14.Square(&v1)
+	v14.Square(&v14)
+	ell22.Square(&ell2)
+	v27.Square(&v2)
+	v27.Mul(&v27, &v2)
+	v27.Square(&v27)
+	v27.Mul(&v27, &v2)
+
+	f8.Mul(&ell14, &v14)
+	f8.Mul(&f8, &ell22)
+	f8.Mul(&f8, &v27)
+
+	// g approach: g = conj(f8)/f8, then g^(2^124) with cyclotomic squarings.
+	var conjF8, f8Inv, g fp2.E2
+	conjF8.Conjugate(&f8)
+	f8Inv.Inverse(&f8)
+	g.Mul(&conjF8, &f8Inv)
+	for range 124 {
+		g.CyclotomicSquare(&g)
+	}
+	if !g.IsOne() {
+		return false
+	}
+
+	// === Septic check (unchanged) ===
+	var ellD1, vD1 fp2.E2
+	{
+		var tmp fp2.E2
+		tmp.Sub(&XQ, &XS7)
+		ellD1.Mul(&lamDbl1, &tmp)
+		ellD1.Sub(&YQ, &ellD1)
+		ellD1.Sub(&ellD1, &YS7)
+		vD1.Sub(&XQ, &X2S)
+	}
+	var ellA1, vA1 fp2.E2
+	{
+		var tmp fp2.E2
+		tmp.Sub(&XQ, &X2S)
+		ellA1.Mul(&lamAdd1, &tmp)
+		ellA1.Sub(&YQ, &ellA1)
+		ellA1.Sub(&ellA1, &Y2S)
+		vA1.Sub(&XQ, &X3S)
+	}
+	var ellD2, vD2 fp2.E2
+	{
+		var tmp fp2.E2
+		tmp.Sub(&XQ, &X3S)
+		ellD2.Mul(&lamDbl2, &tmp)
+		ellD2.Sub(&YQ, &ellD2)
+		ellD2.Sub(&ellD2, &Y3S)
+		vD2.Sub(&XQ, &X6S)
+	}
+	var gVert fp2.E2
+	gVert.Sub(&XQ, &XS7)
+
+	var vD1Inv, vA1Inv, vD2Inv fp2.E2
+	vD1Inv.Inverse(&vD1)
+	vA1Inv.Inverse(&vA1)
+	vD2Inv.Inverse(&vD2)
+
+	var f7 fp2.E2
+	f7.Mul(&ellD1, &vD1Inv)
+	var tmp fp2.E2
+	tmp.Mul(&ellA1, &vA1Inv)
+	f7.Mul(&f7, &tmp)
+	f7.Square(&f7)
+	tmp.Mul(&ellD2, &vD2Inv)
+	f7.Mul(&f7, &tmp)
+	f7.Mul(&f7, &gVert)
+
+	normF7 := f7.Norm()
+	var septicResult fp2.Element
+	septicResult.ExpBySepticFp(normF7)
+	return septicResult.IsOne()
+}
+
+// isInSubGroupTateExp3 uses the torus/Lucas approach for the octic:
+// g = conj(f8)/f8 (on the torus), compress to trace t = g + g⁻¹ ∈ Fp,
+// then 124 iterations of t → t²−2 (1S per step). Check t == 2.
+func (p *PointAffine) isInSubGroupTateExp3() bool {
+	smtInitOnce.Do(initSMTConstants)
+	initOnce.Do(initCurveParams)
+
+	if p.IsZero() {
+		return true
+	}
+
+	XQ, YQ := edwardsToWeierstrass(p)
+
+	// === Octic check (torus/trace approach) ===
+	var xd1, ell1, v1 fp2.E2
+	xd1.Sub(&XQ, &XT8)
+	ell1.Mul(&lamT8, &xd1)
+	ell1.Sub(&YQ, &ell1)
+	ell1.Sub(&ell1, &YT8)
+	v1.Sub(&XQ, &XT4)
+
+	var xd2, ell2, v2 fp2.E2
+	xd2.Sub(&XQ, &XT4)
+	ell2.Mul(&lamT4, &xd2)
+	ell2.Sub(&YQ, &ell2)
+	ell2.Sub(&ell2, &YT4)
+	v2.Sub(&XQ, &XT2)
+
+	var ell14, v14, ell22, v27, f8 fp2.E2
+	ell14.Square(&ell1)
+	ell14.Square(&ell14)
+	v14.Square(&v1)
+	v14.Square(&v14)
+	ell22.Square(&ell2)
+	v27.Square(&v2)
+	v27.Mul(&v27, &v2)
+	v27.Square(&v27)
+	v27.Mul(&v27, &v2)
+
+	f8.Mul(&ell14, &v14)
+	f8.Mul(&f8, &ell22)
+	f8.Mul(&f8, &v27)
+
+	// g = conj(f8)/f8. Trace: t = g + g⁻¹ = (conj(f8)²+f8²)/Norm(f8)
+	// = 2(a²-b²)/(a²+b²) for f8 = a+bi.
+	// Compute projectively: T = 2(a²-b²), N = a²+b² = Norm(f8).
+	var a2, b2 fp2.Element
+	a2.Square(&f8.A0)
+	b2.Square(&f8.A1)
+	var T, N fp2.Element
+	T.Sub(&a2, &b2)
+	T.Double(&T)       // T = 2(a²-b²)
+	N.Add(&a2, &b2)    // N = Norm(f8)
+
+	// 124 iterations of t → t²−2 in projective form:
+	// (T, N) → (T²−2N², N²)
+	var T2, N2 fp2.Element
+	for range 124 {
+		T2.Square(&T)
+		N2.Square(&N)
+		T.Sub(&T2, new(fp2.Element).Double(&N2))
+		N.Set(&N2)
+	}
+
+	// Check t == 2, i.e., T == 2·N
+	var twoN fp2.Element
+	twoN.Double(&N)
+	if !T.Equal(&twoN) {
+		return false
+	}
+
+	// === Septic check (unchanged) ===
+	var ellD1, vD1 fp2.E2
+	{
+		var tmp fp2.E2
+		tmp.Sub(&XQ, &XS7)
+		ellD1.Mul(&lamDbl1, &tmp)
+		ellD1.Sub(&YQ, &ellD1)
+		ellD1.Sub(&ellD1, &YS7)
+		vD1.Sub(&XQ, &X2S)
+	}
+	var ellA1, vA1 fp2.E2
+	{
+		var tmp fp2.E2
+		tmp.Sub(&XQ, &X2S)
+		ellA1.Mul(&lamAdd1, &tmp)
+		ellA1.Sub(&YQ, &ellA1)
+		ellA1.Sub(&ellA1, &Y2S)
+		vA1.Sub(&XQ, &X3S)
+	}
+	var ellD2, vD2 fp2.E2
+	{
+		var tmp fp2.E2
+		tmp.Sub(&XQ, &X3S)
+		ellD2.Mul(&lamDbl2, &tmp)
+		ellD2.Sub(&YQ, &ellD2)
+		ellD2.Sub(&ellD2, &Y3S)
+		vD2.Sub(&XQ, &X6S)
+	}
+	var gVert fp2.E2
+	gVert.Sub(&XQ, &XS7)
+
+	var vD1Inv, vA1Inv, vD2Inv fp2.E2
+	vD1Inv.Inverse(&vD1)
+	vA1Inv.Inverse(&vA1)
+	vD2Inv.Inverse(&vD2)
+
+	var f7 fp2.E2
+	f7.Mul(&ellD1, &vD1Inv)
+	var tmp fp2.E2
+	tmp.Mul(&ellA1, &vA1Inv)
+	f7.Mul(&f7, &tmp)
+	f7.Square(&f7)
+	tmp.Mul(&ellD2, &vD2Inv)
+	f7.Mul(&f7, &tmp)
+	f7.Mul(&f7, &gVert)
+
+	normF7 := f7.Norm()
+	var septicResult fp2.Element
+	septicResult.ExpBySepticFp(normF7)
+	return septicResult.IsOne()
+}
+
 // IsInSubGroup tests subgroup membership using the fastest available method.
 func (p *PointAffine) IsInSubGroup() bool {
 	return p.isInSubGroupTate()

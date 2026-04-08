@@ -19,6 +19,8 @@ var (
 	sqrtMinBp        fp.Element // sqrt(-B')
 	subgroupOrder    big.Int
 
+	twoFp fp.Element // precomputed constant 2 ∈ Fp
+
 	// Quartic test constants (degree-4 Tate pairing over Fp2).
 	// T4 = (uT4, wT4) is a 4-torsion point on the Montgomery curve over Fp2.
 	// lam is the tangent slope at T4.
@@ -58,6 +60,8 @@ func initSubgroupConstants() {
 	sqrtMinBp.Sqrt(&negBp)
 
 	subgroupOrder.Set(&curveParams.Order)
+
+	twoFp.SetUint64(2)
 
 	// Quartic test constants.
 	// These come from a 4-torsion point T4 ∈ E(Fp2) \ E(Fp) on the Montgomery curve,
@@ -224,7 +228,7 @@ func (p *PointAffine) isInSubGroupPornin() bool {
 //
 // where λ, C are precomputed Fp2 constants and conj(u_{T2}) is the conjugate
 // of the 2-torsion u-coordinate.
-func (p *PointAffine) isInSubGroupQuarticExp() bool {
+func (p *PointAffine) isInSubGroupQuarticExp1() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 
 	if isLowOrder(&p.X, &p.Y) {
@@ -261,13 +265,10 @@ func (p *PointAffine) isInSubGroupQuarticExp() bool {
 	return beta.A1.IsZero()
 }
 
-// isInSubGroupQuarticGCD tests subgroup membership using a quartic
-// residuosity check in Fp2 (GCD method).
-//
-// Same mathematical test as isInSubGroupQuarticExp, but computes the
-// quartic character using a Euclidean GCD algorithm over Z[i] with
-// the Gaussian prime p (since p ≡ 3 mod 4, p is inert in Z[i]).
-func (p *PointAffine) isInSubGroupQuarticGCD() bool {
+// isInSubGroupQuarticExp2 tests subgroup membership using the g approach:
+// g = conj(α)/α (on the torus), then g^((p+1)/4) with cyclotomic squarings,
+// check result == 1.
+func (p *PointAffine) isInSubGroupQuarticExp2() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 
 	if isLowOrder(&p.X, &p.Y) {
@@ -276,7 +277,7 @@ func (p *PointAffine) isInSubGroupQuarticGCD() bool {
 
 	u, w := edwardsToPorninMontgomery(p)
 
-	// Same alpha construction as quarticExp.
+	// Same alpha construction as Exp1.
 	var l1 fp2.E2
 	l1.A0.Mul(&quarticLam.A0, &u)
 	l1.A1.Mul(&quarticLam.A1, &u)
@@ -293,12 +294,126 @@ func (p *PointAffine) isInSubGroupQuarticGCD() bool {
 	alpha.Square(&l1)
 	alpha.Mul(&alpha, &conjV1)
 
-	// TODO: implement proper GCD-based quartic symbol over Z[i] with Gaussian prime p.
-	// For now, fall back to exponentiation method.
-	return alpha.QuarticSymbol() == 0
+	// g approach: g = conj(alpha)/alpha (on the norm-1 torus).
+	var conjAlpha, alphaInv, g fp2.E2
+	conjAlpha.Conjugate(&alpha)
+	alphaInv.Inverse(&alpha)
+	g.Mul(&conjAlpha, &alphaInv)
+
+	// g^((p+1)/4) with cyclotomic squarings, check == 1.
+	var result fp2.E2
+	result.CyclotomicExpBySqrtPp1o4(&g)
+	return result.IsOne()
+}
+
+// isInSubGroupQuarticExp3 tests subgroup membership using the torus/Lucas approach:
+// g = conj(α)/α (on the torus), compress to projective trace T/N ∈ Fp,
+// then Montgomery ladder for (p+1)/4 = 2^222·(2^224-1) using t→t²−2
+// for squarings and t_{m+n} = t_m·t_n − t_{m-n} for additions.
+// Check trace == 2 at the end.
+func (p *PointAffine) isInSubGroupQuarticExp3() bool {
+	subgroupInitOnce.Do(initSubgroupConstants)
+
+	if isLowOrder(&p.X, &p.Y) {
+		return p.IsZero()
+	}
+
+	u, w := edwardsToPorninMontgomery(p)
+
+	// Same alpha construction.
+	var l1 fp2.E2
+	l1.A0.Mul(&quarticLam.A0, &u)
+	l1.A1.Mul(&quarticLam.A1, &u)
+	l1.A0.Sub(&w, &l1.A0)
+	l1.A0.Sub(&l1.A0, &quarticC.A0)
+	l1.A1.Neg(&l1.A1)
+	l1.A1.Sub(&l1.A1, &quarticC.A1)
+
+	var conjV1 fp2.E2
+	conjV1.A0.Sub(&u, &quarticConjRe)
+	conjV1.A1.Set(&quarticConjIm)
+
+	var alpha fp2.E2
+	alpha.Square(&l1)
+	alpha.Mul(&alpha, &conjV1)
+
+	// Projective trace of g = conj(α)/α:
+	// t = g + g⁻¹ = 2(a²-b²)/(a²+b²) for α = a+bi.
+	// T = 2(a²-b²), N = a²+b² = Norm(α). No inversion needed.
+	var a2, b2, T, N fp.Element
+	a2.Square(&alpha.A0)
+	b2.Square(&alpha.A1)
+	T.Sub(&a2, &b2)
+	T.Double(&T)
+	N.Add(&a2, &b2)
+
+	// Montgomery ladder for exponent e = (p+1)/4 = 2^222·(2^224-1).
+	// We maintain (T_n, N_n, T_{n+1}, N_{n+1}) where U_k = T_k/N_k = trace(g^k).
+	//
+	// Doubling: U_{2k} = U_k² - 2
+	//   T_{2k} = T_k² - 2·N_k²,  N_{2k} = N_k²
+	//
+	// Addition (using difference U_1):
+	//   U_{k+1} = U_k·U_1 - U_{k-1}  (not directly usable in Montgomery ladder)
+	//
+	// Montgomery ladder step for bit b:
+	//   if b=0: (U_n, U_{n+1}) → (U_{2n}, U_{2n+1})
+	//   if b=1: (U_n, U_{n+1}) → (U_{2n+1}, U_{2n+2})
+	// where U_{2n} = U_n²-2, U_{2n+1} = U_n·U_{n+1} - U_1, U_{2n+2} = U_{n+1}²-2
+	//
+	// Projective Montgomery ladder step:
+	//   Double: (T, N) → (T²-2N², N²)
+	//   DblAdd: T_{m+n}·N_1 = T_m·T_n·N_1 - ... needs care.
+	//
+	// For projective, maintain (Tn, Nn, Tn1, Nn1) with known (T1, N1):
+	//   U_{2n}:   T' = Tn²-2Nn²,   N' = Nn²
+	//   U_{2n+1}: T' = Tn·Tn1 - T1·Nn·Nn1/N1 ... requires division.
+	//
+	// Simpler: do the inversion once to get affine t = T/N, then run affine ladder.
+
+	var nInv fp.Element
+	nInv.Inverse(&N)
+	var t fp.Element
+	t.Mul(&T, &nInv) // t = trace(g) ∈ Fp
+
+	// Affine Montgomery ladder for e = (p+1)/4.
+	// (p+1)/4 in binary: 446 bits.
+	// Maintain (u0, u1) = (trace(g^n), trace(g^{n+1})).
+	// Bit=0: u0' = u0²-2, u1' = u0·u1 - t
+	// Bit=1: u0' = u0·u1 - t, u1' = u1²-2
+
+	// e = (p+1)/4 as big.Int
+	var e big.Int
+	e.Set(fp.Modulus())
+	e.Add(&e, big.NewInt(1))
+	e.Rsh(&e, 2)
+
+	u0 := t // trace(g^1) = t
+	var u1 fp.Element
+	u1.Square(&t)
+	u1.Sub(&u1, &twoFp) // trace(g^2) = t²-2
+
+	for i := e.BitLen() - 2; i >= 0; i-- {
+		var prod fp.Element
+		prod.Mul(&u0, &u1)
+		if e.Bit(i) == 0 {
+			// u1 = u0*u1 - t, u0 = u0²-2
+			u1.Sub(&prod, &t)
+			u0.Square(&u0)
+			u0.Sub(&u0, &twoFp)
+		} else {
+			// u0 = u0*u1 - t, u1 = u1²-2
+			u0.Sub(&prod, &t)
+			u1.Square(&u1)
+			u1.Sub(&u1, &twoFp)
+		}
+	}
+
+	// Check trace(g^e) == 2
+	return u0.Equal(&twoFp)
 }
 
 // IsInSubGroup tests subgroup membership using the fastest available method.
 func (p *PointAffine) IsInSubGroup() bool {
-	return p.isInSubGroupQuarticExp()
+	return p.isInSubGroupQuarticExp1()
 }
