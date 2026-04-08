@@ -402,7 +402,7 @@ func (p *PointAffine) isInSubGroupQuarticExp3() bool {
 
 	// Montgomery ladder using precomputed bit pattern of (p+1)/4.
 	var prod fp.Element
-	for i := expNBits - 2; i >= 0; i-- {
+	for i := expNBits - 2; i >= 1; i-- {
 		prod.Mul(&u0, &u1)
 		if (expBits[i/64]>>(i%64))&1 == 0 {
 			u1.Sub(&prod, &t)
@@ -414,9 +414,181 @@ func (p *PointAffine) isInSubGroupQuarticExp3() bool {
 			u1.Sub(&u1, &twoFp)
 		}
 	}
+	// Last iteration (i=0): only u0 is needed, skip u1 update.
+	if expBits[0]&1 == 0 {
+		u0.Square(&u0)
+		u0.Sub(&u0, &twoFp)
+	} else {
+		prod.Mul(&u0, &u1)
+		u0.Sub(&prod, &t)
+	}
 
 	// Check trace(g^e) == 2
 	return u0.Equal(&twoFp)
+}
+
+// pracOpsQuartic encodes the PRAC differential addition chain for (p+1)/4.
+// Cost: 632 field ops (vs 890 for binary ladder, 29% saving).
+var pracOpsQuartic = [592]byte{
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 3, 10, 3, 0, 3, 10, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0,
+	3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0,
+	3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0,
+	3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0,
+	3, 1, 3, 0, 7, 3, 0, 3, 2, 0, 9, 4, 4, 3, 3, 3, 0, 3, 0, 1,
+	3, 0, 3, 0, 4, 5, 4, 5, 4, 3, 3, 0, 3, 0, 5, 5, 4, 4, 5, 4,
+	4, 3, 3, 0, 3, 3, 0, 3, 0, 3, 3, 3, 0, 5, 3, 3, 3, 0, 3, 0,
+	3, 2, 0, 4, 4, 3, 0, 3, 0, 3, 3, 0, 5, 3, 3, 0, 3, 3, 0, 3,
+	0, 3, 3, 0, 3, 0, 3, 3, 0, 3, 3, 3, 0, 3, 0, 3, 2, 0, 4, 4,
+	3, 0, 3, 0, 3, 3, 3, 0, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 4, 4,
+	5, 5, 5, 4, 4, 5, 5, 4, 4, 4, 5, 4, 4, 5, 4, 4, 5, 4, 4, 5,
+	5, 4, 5, 4, 5, 4, 5, 5, 5, 4, 4, 4, 4, 5, 4, 5, 4, 5, 5, 4,
+	4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 4, 4, 4, 5, 5, 4, 5, 5, 4,
+	4, 5, 5, 4, 5, 4, 4, 4, 4, 5, 5, 5, 3, 2, 0, 9, 9, 4, 5, 4,
+	5, 4, 4, 3, 3, 0, 3, 1, 3, 0, 3, 3, 0, 3, 0, 3, 3, 0, 3, 0,
+	3, 0, 3, 3, 0, 3, 3, 3, 0, 3, 0, 3, 0, 3, 0, 4, 3, 3, 0, 3,
+	3, 0, 4, 3, 3, 0, 3, 0, 3, 0, 3, 3, 0, 3, 0, 3, 0, 3, 0, 6,
+	0, 3, 0, 3, 0, 3, 1, 3, 0, 3, 3, 3, 0, 3, 3, 0, 3, 3, 0, 3,
+	1, 3, 0, 3, 3, 0, 4, 4, 4, 4, 3, 10,
+}
+
+// isInSubGroupQuarticExp4 tests subgroup membership using the torus approach
+// with a PRAC differential addition chain (Montgomery 1992) for the Lucas
+// V-sequence evaluation. PRAC uses 632 field ops vs 890 for the binary ladder.
+func (p *PointAffine) isInSubGroupQuarticExp4() bool {
+	subgroupInitOnce.Do(initSubgroupConstants)
+
+	if isLowOrder(&p.X, &p.Y) {
+		return p.IsZero()
+	}
+
+	u, w := edwardsToPorninMontgomery(p)
+
+	// Same alpha construction.
+	var l1 fp2.E2
+	l1.A0.Mul(&quarticLam.A0, &u)
+	l1.A1.Mul(&quarticLam.A1, &u)
+	l1.A0.Sub(&w, &l1.A0)
+	l1.A0.Sub(&l1.A0, &quarticC.A0)
+	l1.A1.Neg(&l1.A1)
+	l1.A1.Sub(&l1.A1, &quarticC.A1)
+
+	var conjV1 fp2.E2
+	conjV1.A0.Sub(&u, &quarticConjRe)
+	conjV1.A1.Set(&quarticConjIm)
+
+	var alpha fp2.E2
+	alpha.Square(&l1)
+	alpha.Mul(&alpha, &conjV1)
+
+	// Projective trace of g = conj(α)/α:
+	var a2, b2, T, N fp.Element
+	a2.Square(&alpha.A0)
+	b2.Square(&alpha.A1)
+	T.Sub(&a2, &b2)
+	T.Double(&T)
+	N.Add(&a2, &b2)
+
+	// Affine trace: t = T/N
+	var nInv, t fp.Element
+	nInv.Inverse(&N)
+	t.Mul(&T, &nInv)
+
+	// PRAC Lucas V-sequence: maintains A=V_d, B=V_e, C=V_{|d-e|}.
+	var A, B, C fp.Element
+	var T1, T2, T3 fp.Element
+	A.Set(&t)
+	B.Set(&t)
+	C.Set(&twoFp)
+
+	for _, op := range pracOpsQuartic {
+		switch op {
+		case 0: // SWAP
+			A, B = B, A
+		case 1: // CASE1: 3 ops
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			T2.Mul(&T1, &A)
+			T2.Sub(&T2, &B)
+			B.Mul(&T1, &B)
+			B.Sub(&B, &A)
+			A.Set(&T2)
+		case 2, 4: // CASE2, CASE4: 2 ops
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			A.Square(&A)
+			A.Sub(&A, &twoFp)
+			B.Set(&T1)
+		case 3: // CASE3: 1 op
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			C.Set(&B)
+			B.Set(&T1)
+		case 5: // CASE5: 2 ops
+			T1.Mul(&A, &C)
+			T1.Sub(&T1, &B)
+			A.Square(&A)
+			A.Sub(&A, &twoFp)
+			C.Set(&T1)
+		case 6: // CASE6: 4 ops
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			T2.Square(&A)
+			T2.Sub(&T2, &twoFp)
+			T3.Mul(&T2, &A)
+			T3.Sub(&T3, &A)
+			A.Set(&T3)
+			T3.Mul(&T2, &T1)
+			T3.Sub(&T3, &C)
+			C.Set(&B)
+			B.Set(&T3)
+		case 7: // CASE7: 4 ops
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			T2.Square(&A)
+			T2.Sub(&T2, &twoFp)
+			T3.Mul(&T2, &A)
+			T3.Sub(&T3, &A)
+			T2.Mul(&T1, &A)
+			T2.Sub(&T2, &B)
+			A.Set(&T3)
+			B.Set(&T2)
+		case 8: // CASE8: 4 ops
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			T2.Square(&A)
+			T2.Sub(&T2, &twoFp)
+			T3.Mul(&T2, &A)
+			T3.Sub(&T3, &A)
+			C.Mul(&A, &C)
+			C.Sub(&C, &B)
+			A.Set(&T3)
+			B.Set(&T1)
+		case 9: // CASE9: 2 ops
+			T1.Mul(&C, &B)
+			T1.Sub(&T1, &A)
+			B.Square(&B)
+			B.Sub(&B, &twoFp)
+			C.Set(&T1)
+		case 10: // FINAL: 1 op
+			A.Mul(&A, &B)
+			A.Sub(&A, &C)
+			B.Set(&A)
+			C.Set(&twoFp)
+		}
+	}
+
+	return A.Equal(&twoFp)
 }
 
 // IsInSubGroup tests subgroup membership using the fastest available method.

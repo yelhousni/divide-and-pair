@@ -161,9 +161,10 @@ func TestSubgroupQuarticAgreement(t *testing.T) {
 		exp1 := p.isInSubGroupQuarticExp1()
 		exp2 := p.isInSubGroupQuarticExp2()
 		exp3 := p.isInSubGroupQuarticExp3()
+		exp4 := p.isInSubGroupQuarticExp4()
 
-		if !pornin || !exp1 || !exp2 || !exp3 {
-			t.Fatalf("subgroup point k*Base: pornin=%v exp1=%v exp2=%v exp3=%v", pornin, exp1, exp2, exp3)
+		if !pornin || !exp1 || !exp2 || !exp3 || !exp4 {
+			t.Fatalf("subgroup point: pornin=%v exp1=%v exp2=%v exp3=%v exp4=%v", pornin, exp1, exp2, exp3, exp4)
 		}
 	}
 	t.Logf("tested %d subgroup points: all methods agree (all true)", nTests)
@@ -188,9 +189,10 @@ func TestSubgroupQuarticAgreement(t *testing.T) {
 		exp1 := q.isInSubGroupQuarticExp1()
 		exp2 := q.isInSubGroupQuarticExp2()
 		exp3 := q.isInSubGroupQuarticExp3()
+		exp4 := q.isInSubGroupQuarticExp4()
 
-		if pornin || exp1 || exp2 || exp3 {
-			t.Fatalf("non-subgroup (order-2): pornin=%v exp1=%v exp2=%v exp3=%v", pornin, exp1, exp2, exp3)
+		if pornin || exp1 || exp2 || exp3 || exp4 {
+			t.Fatalf("non-subgroup (order-2): pornin=%v exp1=%v exp2=%v exp3=%v exp4=%v", pornin, exp1, exp2, exp3, exp4)
 		}
 		nNonSub++
 	}
@@ -271,6 +273,18 @@ func BenchmarkIsInSubGroupQuarticExp3(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		p.isInSubGroupQuarticExp3()
+	}
+}
+
+func BenchmarkIsInSubGroupQuarticExp4(b *testing.B) {
+	params := curveParameters()
+	k, _ := rand.Int(rand.Reader, &params.Order)
+	var p PointAffine
+	p.ScalarMultiplication(&params.Base, k)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		p.isInSubGroupQuarticExp4()
 	}
 }
 
