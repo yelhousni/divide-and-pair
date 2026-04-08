@@ -99,6 +99,85 @@ func initSMTConstants() {
 	X6S.Set(&XS7) // [6]S7 = -S7, same X
 }
 
+// septicCheck performs the septic residuosity check χ₇(f7) = 1 using
+// Norm accumulation: Norm(f7) = ∏ Norm(ℓᵢ)^eᵢ / ∏ Norm(vⱼ)^eⱼ, computed
+// entirely in Fp without Fp2 inversions.
+//
+// f7 = (ℓD1/vD1 · ℓA1/vA1)² · ℓD2/vD2 · gVert
+// Norm(f7) = Norm(ℓD1)²·Norm(ℓA1)²·Norm(ℓD2)·Norm(gVert) / (Norm(vD1)²·Norm(vA1)²·Norm(vD2))
+func septicCheck(XQ, YQ *fp2.E2) bool {
+	// Step 1a: double S7 → [2]S7
+	var ellD1, vD1 fp2.E2
+	{
+		var tmp fp2.E2
+		tmp.Sub(XQ, &XS7)
+		ellD1.Mul(&lamDbl1, &tmp)
+		ellD1.Sub(YQ, &ellD1)
+		ellD1.Sub(&ellD1, &YS7)
+		vD1.Sub(XQ, &X2S)
+	}
+
+	// Step 1b: add [2]S7 + S7 → [3]S7
+	var ellA1, vA1 fp2.E2
+	{
+		var tmp fp2.E2
+		tmp.Sub(XQ, &X2S)
+		ellA1.Mul(&lamAdd1, &tmp)
+		ellA1.Sub(YQ, &ellA1)
+		ellA1.Sub(&ellA1, &Y2S)
+		vA1.Sub(XQ, &X3S)
+	}
+
+	// Step 2a: double [3]S7 → [6]S7
+	var ellD2, vD2 fp2.E2
+	{
+		var tmp fp2.E2
+		tmp.Sub(XQ, &X3S)
+		ellD2.Mul(&lamDbl2, &tmp)
+		ellD2.Sub(YQ, &ellD2)
+		ellD2.Sub(&ellD2, &Y3S)
+		vD2.Sub(XQ, &X6S)
+	}
+
+	// Step 2b: vertical line
+	var gVert fp2.E2
+	gVert.Sub(XQ, &XS7)
+
+	// Compute Norm of each line/vertical in Fp (2S + 1A each).
+	nEllD1 := ellD1.Norm()
+	nVD1 := vD1.Norm()
+	nEllA1 := ellA1.Norm()
+	nVA1 := vA1.Norm()
+	nEllD2 := ellD2.Norm()
+	nVD2 := vD2.Norm()
+	nGVert := gVert.Norm()
+
+	// Numerator: Norm(ℓD1)² · Norm(ℓA1)² · Norm(ℓD2) · Norm(gVert)
+	var num fp.Element
+	num.Square(&nEllD1)       // Norm(ℓD1)²
+	var t fp.Element
+	t.Square(&nEllA1)         // Norm(ℓA1)²
+	num.Mul(&num, &t)
+	num.Mul(&num, &nEllD2)
+	num.Mul(&num, &nGVert)
+
+	// Denominator: Norm(vD1)² · Norm(vA1)² · Norm(vD2)
+	var den fp.Element
+	den.Square(&nVD1)         // Norm(vD1)²
+	t.Square(&nVA1)           // Norm(vA1)²
+	den.Mul(&den, &t)
+	den.Mul(&den, &nVD2)
+
+	// Norm(f7) = num / den
+	den.Inverse(&den)
+	num.Mul(&num, &den)
+
+	// χ₇(f7) = Norm(f7)^((p-1)/7) ?= 1
+	var result fp.Element
+	result.ExpBySepticFp(num)
+	return result.IsOne()
+}
+
 func edwardsToWeierstrass(p *PointAffine) (X, Y fp2.E2) {
 	var one fp2.E2
 	one.SetOne()
@@ -196,84 +275,7 @@ func (p *PointAffine) isInSubGroupTate() bool {
 		return false
 	}
 
-	// === Septic check (7^2-part of cofactor) ===
-	// Degree-7 Miller function f_{7,S7}(Q) with precomputed intermediates.
-	// n = 7 = (111)₂. Miller loop: 2 double-and-add steps.
-	//
-	// Step 1a: double S7 → [2]S7
-	//   ell = Y_Q - Y_{S7} - lamDbl1*(X_Q - X_{S7})
-	//   v   = X_Q - X_{[2]S7}
-	var ellD1, vD1 fp2.E2
-	{
-		var tmp fp2.E2
-		tmp.Sub(&XQ, &XS7)
-		ellD1.Mul(&lamDbl1, &tmp)
-		ellD1.Sub(&YQ, &ellD1)
-		ellD1.Sub(&ellD1, &YS7)
-		vD1.Sub(&XQ, &X2S)
-	}
-
-	// Step 1b: add [2]S7 + S7 → [3]S7
-	//   ell = Y_Q - Y_{[2]S7} - lamAdd1*(X_Q - X_{[2]S7})
-	//   v   = X_Q - X_{[3]S7}
-	var ellA1, vA1 fp2.E2
-	{
-		var tmp fp2.E2
-		tmp.Sub(&XQ, &X2S)
-		ellA1.Mul(&lamAdd1, &tmp)
-		ellA1.Sub(&YQ, &ellA1)
-		ellA1.Sub(&ellA1, &Y2S)
-		vA1.Sub(&XQ, &X3S)
-	}
-
-	// Step 2a: double [3]S7 → [6]S7
-	//   ell = Y_Q - Y_{[3]S7} - lamDbl2*(X_Q - X_{[3]S7})
-	//   v   = X_Q - X_{[6]S7}
-	var ellD2, vD2 fp2.E2
-	{
-		var tmp fp2.E2
-		tmp.Sub(&XQ, &X3S)
-		ellD2.Mul(&lamDbl2, &tmp)
-		ellD2.Sub(&YQ, &ellD2)
-		ellD2.Sub(&ellD2, &Y3S)
-		vD2.Sub(&XQ, &X6S)
-	}
-
-	// Step 2b: add [6]S7 + S7 → O (vertical line, since [6]S7 = -S7)
-	//   g = X_Q - X_{S7}, v_O = 1
-	var gVert fp2.E2
-	gVert.Sub(&XQ, &XS7)
-
-	// f7 = (ellD1/vD1 * ellA1/vA1)^2 * ellD2/vD2 * gVert
-	// With inversions:
-	// Batch inversion: 1/(vD1*vA1*vD2) via Montgomery's trick.
-	var vD1vA1, prod3, inv3 fp2.E2
-	vD1vA1.Mul(&vD1, &vA1)         // vD1*vA1
-	prod3.Mul(&vD1vA1, &vD2)       // vD1*vA1*vD2
-	inv3.Inverse(&prod3)            // 1/(vD1*vA1*vD2)
-	var vD2Inv, vA1Inv, vD1Inv fp2.E2
-	vD2Inv.Mul(&inv3, &vD1vA1)     // 1/vD2
-	var inv12 fp2.E2
-	inv12.Mul(&inv3, &vD2)          // 1/(vD1*vA1)
-	vA1Inv.Mul(&inv12, &vD1)       // 1/vA1
-	vD1Inv.Mul(&inv12, &vA1)       // 1/vD1
-
-	var f7, tmp fp2.E2
-	f7.Mul(&ellD1, &vD1Inv)
-	tmp.Mul(&ellA1, &vA1Inv)
-	f7.Mul(&f7, &tmp)
-	f7.Square(&f7)
-	tmp.Mul(&ellD2, &vD2Inv)
-	f7.Mul(&f7, &tmp)
-	f7.Mul(&f7, &gVert)
-
-	// Septic check: χ₇(f7) = f7^((p²-1)/7) ?= 1
-	// Since Norm(f7)^((p-1)/7) = f7^((p+1)(p-1)/7) = f7^((p²-1)/7),
-	// we compute the Norm first (cheap, in Fp) then exponentiate in Fp.
-	normF7 := f7.Norm()
-	var septicResult fp.Element
-	septicResult.ExpBySepticFp(normF7)
-	return septicResult.IsOne()
+	return septicCheck(&XQ, &YQ)
 }
 
 // isInSubGroupTateExp1 uses the β approach for the octic:
@@ -331,62 +333,7 @@ func (p *PointAffine) isInSubGroupTateExp1() bool {
 		return false
 	}
 
-	// === Septic check (unchanged) ===
-	var ellD1, vD1 fp2.E2
-	{
-		var tmp fp2.E2
-		tmp.Sub(&XQ, &XS7)
-		ellD1.Mul(&lamDbl1, &tmp)
-		ellD1.Sub(&YQ, &ellD1)
-		ellD1.Sub(&ellD1, &YS7)
-		vD1.Sub(&XQ, &X2S)
-	}
-	var ellA1, vA1 fp2.E2
-	{
-		var tmp fp2.E2
-		tmp.Sub(&XQ, &X2S)
-		ellA1.Mul(&lamAdd1, &tmp)
-		ellA1.Sub(&YQ, &ellA1)
-		ellA1.Sub(&ellA1, &Y2S)
-		vA1.Sub(&XQ, &X3S)
-	}
-	var ellD2, vD2 fp2.E2
-	{
-		var tmp fp2.E2
-		tmp.Sub(&XQ, &X3S)
-		ellD2.Mul(&lamDbl2, &tmp)
-		ellD2.Sub(&YQ, &ellD2)
-		ellD2.Sub(&ellD2, &Y3S)
-		vD2.Sub(&XQ, &X6S)
-	}
-	var gVert fp2.E2
-	gVert.Sub(&XQ, &XS7)
-
-	// Batch inversion: 1/(vD1*vA1*vD2) via Montgomery's trick.
-	var vD1vA1, prod3, inv3 fp2.E2
-	vD1vA1.Mul(&vD1, &vA1)         // vD1*vA1
-	prod3.Mul(&vD1vA1, &vD2)       // vD1*vA1*vD2
-	inv3.Inverse(&prod3)            // 1/(vD1*vA1*vD2)
-	var vD2Inv, vA1Inv, vD1Inv fp2.E2
-	vD2Inv.Mul(&inv3, &vD1vA1)     // 1/vD2
-	var inv12 fp2.E2
-	inv12.Mul(&inv3, &vD2)          // 1/(vD1*vA1)
-	vA1Inv.Mul(&inv12, &vD1)       // 1/vA1
-	vD1Inv.Mul(&inv12, &vA1)       // 1/vD1
-
-	var f7, tmp fp2.E2
-	f7.Mul(&ellD1, &vD1Inv)
-	tmp.Mul(&ellA1, &vA1Inv)
-	f7.Mul(&f7, &tmp)
-	f7.Square(&f7)
-	tmp.Mul(&ellD2, &vD2Inv)
-	f7.Mul(&f7, &tmp)
-	f7.Mul(&f7, &gVert)
-
-	normF7 := f7.Norm()
-	var septicResult fp.Element
-	septicResult.ExpBySepticFp(normF7)
-	return septicResult.IsOne()
+	return septicCheck(&XQ, &YQ)
 }
 
 // isInSubGroupTateExp2 uses the g approach for the octic:
@@ -444,62 +391,7 @@ func (p *PointAffine) isInSubGroupTateExp2() bool {
 		return false
 	}
 
-	// === Septic check (unchanged) ===
-	var ellD1, vD1 fp2.E2
-	{
-		var tmp fp2.E2
-		tmp.Sub(&XQ, &XS7)
-		ellD1.Mul(&lamDbl1, &tmp)
-		ellD1.Sub(&YQ, &ellD1)
-		ellD1.Sub(&ellD1, &YS7)
-		vD1.Sub(&XQ, &X2S)
-	}
-	var ellA1, vA1 fp2.E2
-	{
-		var tmp fp2.E2
-		tmp.Sub(&XQ, &X2S)
-		ellA1.Mul(&lamAdd1, &tmp)
-		ellA1.Sub(&YQ, &ellA1)
-		ellA1.Sub(&ellA1, &Y2S)
-		vA1.Sub(&XQ, &X3S)
-	}
-	var ellD2, vD2 fp2.E2
-	{
-		var tmp fp2.E2
-		tmp.Sub(&XQ, &X3S)
-		ellD2.Mul(&lamDbl2, &tmp)
-		ellD2.Sub(&YQ, &ellD2)
-		ellD2.Sub(&ellD2, &Y3S)
-		vD2.Sub(&XQ, &X6S)
-	}
-	var gVert fp2.E2
-	gVert.Sub(&XQ, &XS7)
-
-	// Batch inversion: 1/(vD1*vA1*vD2) via Montgomery's trick.
-	var vD1vA1, prod3, inv3 fp2.E2
-	vD1vA1.Mul(&vD1, &vA1)         // vD1*vA1
-	prod3.Mul(&vD1vA1, &vD2)       // vD1*vA1*vD2
-	inv3.Inverse(&prod3)            // 1/(vD1*vA1*vD2)
-	var vD2Inv, vA1Inv, vD1Inv fp2.E2
-	vD2Inv.Mul(&inv3, &vD1vA1)     // 1/vD2
-	var inv12 fp2.E2
-	inv12.Mul(&inv3, &vD2)          // 1/(vD1*vA1)
-	vA1Inv.Mul(&inv12, &vD1)       // 1/vA1
-	vD1Inv.Mul(&inv12, &vA1)       // 1/vD1
-
-	var f7, tmp fp2.E2
-	f7.Mul(&ellD1, &vD1Inv)
-	tmp.Mul(&ellA1, &vA1Inv)
-	f7.Mul(&f7, &tmp)
-	f7.Square(&f7)
-	tmp.Mul(&ellD2, &vD2Inv)
-	f7.Mul(&f7, &tmp)
-	f7.Mul(&f7, &gVert)
-
-	normF7 := f7.Norm()
-	var septicResult fp.Element
-	septicResult.ExpBySepticFp(normF7)
-	return septicResult.IsOne()
+	return septicCheck(&XQ, &YQ)
 }
 
 // isInSubGroupTateExp3 uses the torus/Lucas approach for the octic:
@@ -574,62 +466,7 @@ func (p *PointAffine) isInSubGroupTateExp3() bool {
 		return false
 	}
 
-	// === Septic check (unchanged) ===
-	var ellD1, vD1 fp2.E2
-	{
-		var tmp fp2.E2
-		tmp.Sub(&XQ, &XS7)
-		ellD1.Mul(&lamDbl1, &tmp)
-		ellD1.Sub(&YQ, &ellD1)
-		ellD1.Sub(&ellD1, &YS7)
-		vD1.Sub(&XQ, &X2S)
-	}
-	var ellA1, vA1 fp2.E2
-	{
-		var tmp fp2.E2
-		tmp.Sub(&XQ, &X2S)
-		ellA1.Mul(&lamAdd1, &tmp)
-		ellA1.Sub(&YQ, &ellA1)
-		ellA1.Sub(&ellA1, &Y2S)
-		vA1.Sub(&XQ, &X3S)
-	}
-	var ellD2, vD2 fp2.E2
-	{
-		var tmp fp2.E2
-		tmp.Sub(&XQ, &X3S)
-		ellD2.Mul(&lamDbl2, &tmp)
-		ellD2.Sub(&YQ, &ellD2)
-		ellD2.Sub(&ellD2, &Y3S)
-		vD2.Sub(&XQ, &X6S)
-	}
-	var gVert fp2.E2
-	gVert.Sub(&XQ, &XS7)
-
-	// Batch inversion: 1/(vD1*vA1*vD2) via Montgomery's trick.
-	var vD1vA1, prod3, inv3 fp2.E2
-	vD1vA1.Mul(&vD1, &vA1)         // vD1*vA1
-	prod3.Mul(&vD1vA1, &vD2)       // vD1*vA1*vD2
-	inv3.Inverse(&prod3)            // 1/(vD1*vA1*vD2)
-	var vD2Inv, vA1Inv, vD1Inv fp2.E2
-	vD2Inv.Mul(&inv3, &vD1vA1)     // 1/vD2
-	var inv12 fp2.E2
-	inv12.Mul(&inv3, &vD2)          // 1/(vD1*vA1)
-	vA1Inv.Mul(&inv12, &vD1)       // 1/vA1
-	vD1Inv.Mul(&inv12, &vA1)       // 1/vD1
-
-	var f7, tmp fp2.E2
-	f7.Mul(&ellD1, &vD1Inv)
-	tmp.Mul(&ellA1, &vA1Inv)
-	f7.Mul(&f7, &tmp)
-	f7.Square(&f7)
-	tmp.Mul(&ellD2, &vD2Inv)
-	f7.Mul(&f7, &tmp)
-	f7.Mul(&f7, &gVert)
-
-	normF7 := f7.Norm()
-	var septicResult fp.Element
-	septicResult.ExpBySepticFp(normF7)
-	return septicResult.IsOne()
+	return septicCheck(&XQ, &YQ)
 }
 
 // IsInSubGroup tests subgroup membership using the fastest available method.
