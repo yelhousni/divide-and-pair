@@ -30,6 +30,16 @@ var (
 	lamDbl2  fp2.E2 // tangent slope at [3]S7
 	X6S      fp2.E2 // [6]S7 = -S7 (X only, Y is -YS7)
 
+	// Second independent 7-torsion point S7' and its Miller loop intermediates.
+	// E[7](Fp2) ≅ Z7 × Z7, so we need two independent points to check both factors.
+	XS7p, YS7p   fp2.E2
+	lamDbl1p      fp2.E2 // tangent slope at S7'
+	X2Sp, Y2Sp   fp2.E2 // [2]S7'
+	lamAdd1p      fp2.E2 // chord slope S7', [2]S7'
+	X3Sp, Y3Sp   fp2.E2 // [3]S7'
+	lamDbl2p      fp2.E2 // tangent slope at [3]S7'
+	X6Sp          fp2.E2 // [6]S7' = -S7' (X only)
+
 	three fp2.E2
 )
 
@@ -97,53 +107,79 @@ func initSMTConstants() {
 	lamDbl2.A1.SetString("21100793565021504938029727675157445515")
 
 	X6S.Set(&XS7) // [6]S7 = -S7, same X
+
+	// Second independent 7-torsion point S7' (from Sage, seed=1).
+	// S7 and S7' together generate E[7](Fp2) ≅ Z7 × Z7.
+	XS7p.A0.SetString("134226817183232424897437757433869201092")
+	XS7p.A1.SetString("130939014160170965664116628940157096270")
+	YS7p.A0.SetString("44780681017233260662086977535495331704")
+	YS7p.A1.SetString("60082122951898920823140075210382386075")
+
+	lamDbl1p.A0.SetString("79876232603258742370078483576637952910")
+	lamDbl1p.A1.SetString("93431063624494182359521542759712946209")
+
+	X2Sp.A0.SetString("14985878640945021751153055736915441094")
+	X2Sp.A1.SetString("35562414809826163017035549423954142235")
+	Y2Sp.A0.SetString("20351043536092277668563817211857088150")
+	Y2Sp.A1.SetString("88111568418789077182609138749030999981")
+
+	lamAdd1p.A0.SetString("135655560401356473744585404315093205196")
+	lamAdd1p.A1.SetString("158246920428350027040846798030706302090")
+
+	X3Sp.A0.SetString("86614998441207314901553846558717181209")
+	X3Sp.A1.SetString("119520286240226947588091143044800503760")
+	Y3Sp.A0.SetString("126913250202842280960467879346012678119")
+	Y3Sp.A1.SetString("38938712949820441804460416342134306702")
+
+	lamDbl2p.A0.SetString("149509976829250023099150978250294296208")
+	lamDbl2p.A1.SetString("150620094415765623422294113057405903169")
+
+	X6Sp.Set(&XS7p) // [6]S7' = -S7', same X
 }
 
-// septicCheck performs the septic residuosity check χ₇(f7) = 1 using
-// Norm accumulation: Norm(f7) = ∏ Norm(ℓᵢ)^eᵢ / ∏ Norm(vⱼ)^eⱼ, computed
-// entirely in Fp without Fp2 inversions.
-//
-// f7 = (ℓD1/vD1 · ℓA1/vA1)² · ℓD2/vD2 · gVert
-// Norm(f7) = Norm(ℓD1)²·Norm(ℓA1)²·Norm(ℓD2)·Norm(gVert) / (Norm(vD1)²·Norm(vA1)²·Norm(vD2))
-func septicCheck(XQ, YQ *fp2.E2) bool {
-	// Step 1a: double S7 → [2]S7
+// septicCheckWith performs the septic residuosity check χ₇(f_{7,S}(Q)) = 1
+// for a given 7-torsion point S and its precomputed Miller loop intermediates.
+// Uses Norm accumulation entirely in Fp without Fp2 inversions.
+func septicCheckWith(XQ, YQ *fp2.E2,
+	xS7, yS7, ld1, x2S, y2S, la1, x3S, y3S, ld2, x6S *fp2.E2) bool {
+	// Step 1a: double S → [2]S
 	var ellD1, vD1 fp2.E2
 	{
 		var tmp fp2.E2
-		tmp.Sub(XQ, &XS7)
-		ellD1.Mul(&lamDbl1, &tmp)
+		tmp.Sub(XQ, xS7)
+		ellD1.Mul(ld1, &tmp)
 		ellD1.Sub(YQ, &ellD1)
-		ellD1.Sub(&ellD1, &YS7)
-		vD1.Sub(XQ, &X2S)
+		ellD1.Sub(&ellD1, yS7)
+		vD1.Sub(XQ, x2S)
 	}
 
-	// Step 1b: add [2]S7 + S7 → [3]S7
+	// Step 1b: add [2]S + S → [3]S
 	var ellA1, vA1 fp2.E2
 	{
 		var tmp fp2.E2
-		tmp.Sub(XQ, &X2S)
-		ellA1.Mul(&lamAdd1, &tmp)
+		tmp.Sub(XQ, x2S)
+		ellA1.Mul(la1, &tmp)
 		ellA1.Sub(YQ, &ellA1)
-		ellA1.Sub(&ellA1, &Y2S)
-		vA1.Sub(XQ, &X3S)
+		ellA1.Sub(&ellA1, y2S)
+		vA1.Sub(XQ, x3S)
 	}
 
-	// Step 2a: double [3]S7 → [6]S7
+	// Step 2a: double [3]S → [6]S
 	var ellD2, vD2 fp2.E2
 	{
 		var tmp fp2.E2
-		tmp.Sub(XQ, &X3S)
-		ellD2.Mul(&lamDbl2, &tmp)
+		tmp.Sub(XQ, x3S)
+		ellD2.Mul(ld2, &tmp)
 		ellD2.Sub(YQ, &ellD2)
-		ellD2.Sub(&ellD2, &Y3S)
-		vD2.Sub(XQ, &X6S)
+		ellD2.Sub(&ellD2, y3S)
+		vD2.Sub(XQ, x6S)
 	}
 
 	// Step 2b: vertical line
 	var gVert fp2.E2
-	gVert.Sub(XQ, &XS7)
+	gVert.Sub(XQ, xS7)
 
-	// Compute Norm of each line/vertical in Fp (2S + 1A each).
+	// Compute Norm of each line/vertical in Fp.
 	nEllD1 := ellD1.Norm()
 	nVD1 := vD1.Norm()
 	nEllA1 := ellA1.Norm()
@@ -154,17 +190,17 @@ func septicCheck(XQ, YQ *fp2.E2) bool {
 
 	// Numerator: Norm(ℓD1)² · Norm(ℓA1)² · Norm(ℓD2) · Norm(gVert)
 	var num fp.Element
-	num.Square(&nEllD1) // Norm(ℓD1)²
+	num.Square(&nEllD1)
 	var t fp.Element
-	t.Square(&nEllA1) // Norm(ℓA1)²
+	t.Square(&nEllA1)
 	num.Mul(&num, &t)
 	num.Mul(&num, &nEllD2)
 	num.Mul(&num, &nGVert)
 
 	// Denominator: Norm(vD1)² · Norm(vA1)² · Norm(vD2)
 	var den fp.Element
-	den.Square(&nVD1) // Norm(vD1)²
-	t.Square(&nVA1)   // Norm(vA1)²
+	den.Square(&nVD1)
+	t.Square(&nVA1)
 	den.Mul(&den, &t)
 	den.Mul(&den, &nVD2)
 
@@ -176,6 +212,18 @@ func septicCheck(XQ, YQ *fp2.E2) bool {
 	var result fp.Element
 	result.ExpBySepticFp(num)
 	return result.IsOne()
+}
+
+// septicCheck performs the septic check with the first 7-torsion point S7.
+func septicCheck(XQ, YQ *fp2.E2) bool {
+	return septicCheckWith(XQ, YQ,
+		&XS7, &YS7, &lamDbl1, &X2S, &Y2S, &lamAdd1, &X3S, &Y3S, &lamDbl2, &X6S)
+}
+
+// septicCheckPrime performs the septic check with the second 7-torsion point S7'.
+func septicCheckPrime(XQ, YQ *fp2.E2) bool {
+	return septicCheckWith(XQ, YQ,
+		&XS7p, &YS7p, &lamDbl1p, &X2Sp, &Y2Sp, &lamAdd1p, &X3Sp, &Y3Sp, &lamDbl2p, &X6Sp)
 }
 
 func edwardsToWeierstrass(p *PointAffine) (X, Y fp2.E2) {
@@ -296,7 +344,10 @@ func (p *PointAffine) isInSubGroupTate() bool {
 		return false
 	}
 
-	return septicCheck(&XQ, &YQ)
+	// === Septic checks ===
+	// E[7](Fp2) ≅ Z7 × Z7, so we need two independent 7-torsion points
+	// to verify Q ∈ [7]E(Fp2) (i.e., the 7-part of the cofactor is cleared).
+	return septicCheck(&XQ, &YQ) && septicCheckPrime(&XQ, &YQ)
 }
 
 // IsInSubGroup tests subgroup membership using the fastest available method.
