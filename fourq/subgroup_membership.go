@@ -232,182 +232,8 @@ func (p *PointAffine) isInSubGroupTate() bool {
 
 	XQ, YQ := edwardsToWeierstrass(p)
 
-	// === Octic check (2^3-part of cofactor) ===
-	// f8 = g1^4 * g2^2 * g3, division-free: ell1^4 * v1^4 * ell2^2 * v2^7
-	var xd1, ell1, v1 fp2.E2
-	xd1.Sub(&XQ, &XT8)
-	ell1.Mul(&lamT8, &xd1)
-	ell1.Sub(&YQ, &ell1)
-	ell1.Sub(&ell1, &YT8)
-	v1.Sub(&XQ, &XT4)
-
-	var xd2, ell2, v2 fp2.E2
-	xd2.Sub(&XQ, &XT4)
-	ell2.Mul(&lamT4, &xd2)
-	ell2.Sub(&YQ, &ell2)
-	ell2.Sub(&ell2, &YT4)
-	v2.Sub(&XQ, &XT2)
-
-	var ell14, v14, ell22, v27, f8 fp2.E2
-	ell14.Square(&ell1)
-	ell14.Square(&ell14)
-	v14.Square(&v1)
-	v14.Square(&v14)
-	ell22.Square(&ell2)
-	v27.Square(&v2)
-	v27.Mul(&v27, &v2)
-	v27.Square(&v27)
-	v27.Mul(&v27, &v2)
-
-	f8.Mul(&ell14, &v14)
-	f8.Mul(&f8, &ell22)
-	f8.Mul(&f8, &v27)
-
-	// Frobenius: z^(p-1) = conj(z)/z, then (p+1)/8 = 2^124 squarings
-	var conjF8, f8Inv, z8 fp2.E2
-	conjF8.Conjugate(&f8)
-	f8Inv.Inverse(&f8)
-	z8.Mul(&conjF8, &f8Inv)
-	for range 124 {
-		z8.Square(&z8)
-	}
-	if !z8.IsOne() {
-		return false
-	}
-
-	return septicCheck(&XQ, &YQ)
-}
-
-// isInSubGroupTateExp1 uses the β approach for the octic:
-// β = f8^((p+1)/8), check β.A1 == 0.
-// Generic Fp2 squarings, no inversion needed.
-func (p *PointAffine) isInSubGroupTateExp1() bool {
-	smtInitOnce.Do(initSMTConstants)
-	initOnce.Do(initCurveParams)
-
-	if p.IsZero() {
-		return true
-	}
-
-	XQ, YQ := edwardsToWeierstrass(p)
-
-	// === Octic check (β approach) ===
-	// f8 = ell1^4 * v1^4 * ell2^2 * v2^7
-	var xd1, ell1, v1 fp2.E2
-	xd1.Sub(&XQ, &XT8)
-	ell1.Mul(&lamT8, &xd1)
-	ell1.Sub(&YQ, &ell1)
-	ell1.Sub(&ell1, &YT8)
-	v1.Sub(&XQ, &XT4)
-
-	var xd2, ell2, v2 fp2.E2
-	xd2.Sub(&XQ, &XT4)
-	ell2.Mul(&lamT4, &xd2)
-	ell2.Sub(&YQ, &ell2)
-	ell2.Sub(&ell2, &YT4)
-	v2.Sub(&XQ, &XT2)
-
-	var ell14, v14, ell22, v27, f8 fp2.E2
-	ell14.Square(&ell1)
-	ell14.Square(&ell14)
-	v14.Square(&v1)
-	v14.Square(&v14)
-	ell22.Square(&ell2)
-	v27.Square(&v2)
-	v27.Mul(&v27, &v2)
-	v27.Square(&v27)
-	v27.Mul(&v27, &v2)
-
-	f8.Mul(&ell14, &v14)
-	f8.Mul(&f8, &ell22)
-	f8.Mul(&f8, &v27)
-
-	// β approach: β = f8^((p+1)/8) = f8^(2^124), check β.A1 == 0.
-	// (p+1)/8 = 2^124 for p = 2^127-1.
-	var beta fp2.E2
-	beta.Set(&f8)
-	for range 124 {
-		beta.Square(&beta)
-	}
-	if !beta.A1.IsZero() {
-		return false
-	}
-
-	return septicCheck(&XQ, &YQ)
-}
-
-// isInSubGroupTateExp2 uses the g approach for the octic:
-// g = conj(f8)/f8 (on the torus), then g^((p+1)/8) = g^(2^124)
-// with cyclotomic squarings. Check result == 1.
-func (p *PointAffine) isInSubGroupTateExp2() bool {
-	smtInitOnce.Do(initSMTConstants)
-	initOnce.Do(initCurveParams)
-
-	if p.IsZero() {
-		return true
-	}
-
-	XQ, YQ := edwardsToWeierstrass(p)
-
-	// === Octic check (g approach with cyclotomic squarings) ===
-	var xd1, ell1, v1 fp2.E2
-	xd1.Sub(&XQ, &XT8)
-	ell1.Mul(&lamT8, &xd1)
-	ell1.Sub(&YQ, &ell1)
-	ell1.Sub(&ell1, &YT8)
-	v1.Sub(&XQ, &XT4)
-
-	var xd2, ell2, v2 fp2.E2
-	xd2.Sub(&XQ, &XT4)
-	ell2.Mul(&lamT4, &xd2)
-	ell2.Sub(&YQ, &ell2)
-	ell2.Sub(&ell2, &YT4)
-	v2.Sub(&XQ, &XT2)
-
-	var ell14, v14, ell22, v27, f8 fp2.E2
-	ell14.Square(&ell1)
-	ell14.Square(&ell14)
-	v14.Square(&v1)
-	v14.Square(&v14)
-	ell22.Square(&ell2)
-	v27.Square(&v2)
-	v27.Mul(&v27, &v2)
-	v27.Square(&v27)
-	v27.Mul(&v27, &v2)
-
-	f8.Mul(&ell14, &v14)
-	f8.Mul(&f8, &ell22)
-	f8.Mul(&f8, &v27)
-
-	// g approach: g = conj(f8)/f8, then g^(2^124) with cyclotomic squarings.
-	var conjF8, f8Inv, g fp2.E2
-	conjF8.Conjugate(&f8)
-	f8Inv.Inverse(&f8)
-	g.Mul(&conjF8, &f8Inv)
-	for range 124 {
-		g.CyclotomicSquare(&g)
-	}
-	if !g.IsOne() {
-		return false
-	}
-
-	return septicCheck(&XQ, &YQ)
-}
-
-// isInSubGroupTateExp3 uses the torus/Lucas approach for the octic:
-// g = conj(f8)/f8 (on the torus), compress to trace t = g + g⁻¹ ∈ Fp,
-// then 124 iterations of t → t²−2 (1S per step). Check t == 2.
-func (p *PointAffine) isInSubGroupTateExp3() bool {
-	smtInitOnce.Do(initSMTConstants)
-	initOnce.Do(initCurveParams)
-
-	if p.IsZero() {
-		return true
-	}
-
-	XQ, YQ := edwardsToWeierstrass(p)
-
 	// === Octic check (torus/trace approach) ===
+	// f8 = ell1^4 * v1^4 * ell2^2 * v2^7 (division-free)
 	var xd1, ell1, v1 fp2.E2
 	xd1.Sub(&XQ, &XT8)
 	ell1.Mul(&lamT8, &xd1)
@@ -437,8 +263,7 @@ func (p *PointAffine) isInSubGroupTateExp3() bool {
 	f8.Mul(&f8, &ell22)
 	f8.Mul(&f8, &v27)
 
-	// g = conj(f8)/f8. Trace: t = g + g⁻¹ = (conj(f8)²+f8²)/Norm(f8)
-	// = 2(a²-b²)/(a²+b²) for f8 = a+bi.
+	// g = conj(f8)/f8. Trace: t = g + g⁻¹ = 2(a²-b²)/(a²+b²) for f8 = a+bi.
 	// Compute projectively: T = 2(a²-b²), N = a²+b² = Norm(f8).
 	var a2, b2 fp.Element
 	a2.Square(&f8.A0)
@@ -447,6 +272,11 @@ func (p *PointAffine) isInSubGroupTateExp3() bool {
 	T.Sub(&a2, &b2)
 	T.Double(&T)       // T = 2(a²-b²)
 	N.Add(&a2, &b2)    // N = Norm(f8)
+
+	// If f8 = 0 (degenerate Miller value), the point is not in the subgroup.
+	if N.IsZero() {
+		return false
+	}
 
 	// 124 iterations of t → t²−2 in projective form:
 	// (T, N) → (T²−2N², N²)

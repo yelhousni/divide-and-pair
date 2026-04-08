@@ -158,16 +158,13 @@ func TestSubgroupQuarticAgreement(t *testing.T) {
 		p.ScalarMultiplication(&params.Base, k)
 
 		pornin := p.isInSubGroupPornin()
-		exp1 := p.isInSubGroupQuarticExp1()
-		exp2 := p.isInSubGroupQuarticExp2()
-		exp3 := p.isInSubGroupQuarticExp3()
-		exp4 := p.isInSubGroupQuarticExp4()
+		quartic := p.isInSubGroupQuartic()
 
-		if !pornin || !exp1 || !exp2 || !exp3 || !exp4 {
-			t.Fatalf("subgroup point: pornin=%v exp1=%v exp2=%v exp3=%v exp4=%v", pornin, exp1, exp2, exp3, exp4)
+		if !pornin || !quartic {
+			t.Fatalf("subgroup point: pornin=%v quartic=%v", pornin, quartic)
 		}
 	}
-	t.Logf("tested %d subgroup points: all methods agree (all true)", nTests)
+	t.Logf("tested %d subgroup points: both methods agree (all true)", nTests)
 
 	// Non-subgroup: order-2 offset
 	var order2Pt PointAffine
@@ -186,13 +183,10 @@ func TestSubgroupQuarticAgreement(t *testing.T) {
 		q.Add(&p, &order2Pt)
 
 		pornin := q.isInSubGroupPornin()
-		exp1 := q.isInSubGroupQuarticExp1()
-		exp2 := q.isInSubGroupQuarticExp2()
-		exp3 := q.isInSubGroupQuarticExp3()
-		exp4 := q.isInSubGroupQuarticExp4()
+		quartic := q.isInSubGroupQuartic()
 
-		if pornin || exp1 || exp2 || exp3 || exp4 {
-			t.Fatalf("non-subgroup (order-2): pornin=%v exp1=%v exp2=%v exp3=%v exp4=%v", pornin, exp1, exp2, exp3, exp4)
+		if pornin || quartic {
+			t.Fatalf("non-subgroup (order-2): pornin=%v quartic=%v", pornin, quartic)
 		}
 		nNonSub++
 	}
@@ -214,12 +208,10 @@ func TestSubgroupQuarticAgreement(t *testing.T) {
 		q.Add(&p, &order4Pt)
 
 		pornin := q.isInSubGroupPornin()
-		exp1 := q.isInSubGroupQuarticExp1()
-		exp2 := q.isInSubGroupQuarticExp2()
-		exp3 := q.isInSubGroupQuarticExp3()
+		quartic := q.isInSubGroupQuartic()
 
-		if pornin || exp1 || exp2 || exp3 {
-			t.Fatalf("non-subgroup (order-4): pornin=%v exp1=%v exp2=%v exp3=%v", pornin, exp1, exp2, exp3)
+		if pornin || quartic {
+			t.Fatalf("non-subgroup (order-4): pornin=%v quartic=%v", pornin, quartic)
 		}
 		nNonSub++
 	}
@@ -252,7 +244,7 @@ func BenchmarkIsInSubGroupPornin(b *testing.B) {
 	}
 }
 
-func BenchmarkIsInSubGroupQuarticExp1(b *testing.B) {
+func BenchmarkIsInSubGroupQuartic(b *testing.B) {
 	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
@@ -260,42 +252,6 @@ func BenchmarkIsInSubGroupQuarticExp1(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.isInSubGroupQuarticExp1()
-	}
-}
-
-func BenchmarkIsInSubGroupQuarticExp3(b *testing.B) {
-	params := curveParameters()
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		p.isInSubGroupQuarticExp3()
-	}
-}
-
-func BenchmarkIsInSubGroupQuarticExp4(b *testing.B) {
-	params := curveParameters()
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		p.isInSubGroupQuarticExp4()
-	}
-}
-
-func BenchmarkIsInSubGroupQuarticExp2(b *testing.B) {
-	params := curveParameters()
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		p.isInSubGroupQuarticExp2()
+		p.isInSubGroupQuartic()
 	}
 }
