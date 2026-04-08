@@ -2,6 +2,7 @@ package curve448
 
 import (
 	"math/big"
+	"math/bits"
 
 	fp "github.com/yelhousni/divide-and-pair/curve448/fp"
 )
@@ -98,30 +99,10 @@ func (p *PointAffine) Double(p1 *PointAffine) *PointAffine {
 
 // ScalarMultiplication scalar multiplication of a point
 func (p *PointAffine) ScalarMultiplication(p1 *PointAffine, scalar *big.Int) *PointAffine {
-	var res PointAffine
-	res.X.SetZero()
-	res.Y.SetOne() // identity
-
-	s := new(big.Int).Set(scalar)
-	if s.Sign() < 0 {
-		var neg PointAffine
-		neg.Neg(p1)
-		p1 = &neg
-		s.Neg(s)
-	}
-
-	var tmp PointAffine
-	tmp.Set(p1)
-
-	for s.Sign() > 0 {
-		if s.Bit(0) == 1 {
-			res.Add(&res, &tmp)
-		}
-		tmp.Double(&tmp)
-		s.Rsh(s, 1)
-	}
-
-	p.Set(&res)
+	var proj, res PointProj
+	proj.FromAffine(p1)
+	res.ScalarMultiplication(&proj, scalar)
+	res.ToAffine(p)
 	return p
 }
 
@@ -155,4 +136,82 @@ func (p *PointProj) ToAffine(a *PointAffine) *PointAffine {
 // IsZero returns true if p is the identity (0:1:1)
 func (p *PointProj) IsZero() bool {
 	return p.X.IsZero() && p.Y.Equal(&p.Z)
+}
+
+func (p *PointProj) setInfinity() *PointProj {
+	p.X.SetZero()
+	p.Y.SetOne()
+	p.Z.SetOne()
+	return p
+}
+
+func (p *PointProj) Neg(p1 *PointProj) *PointProj {
+	p.X.Neg(&p1.X)
+	p.Y.Set(&p1.Y)
+	p.Z.Set(&p1.Z)
+	return p
+}
+
+func (p *PointProj) Add(p1, p2 *PointProj) *PointProj {
+	initOnce.Do(initCurveParams)
+	var A, B, C, D, E, F, G, H, I fp.Element
+	A.Mul(&p1.Z, &p2.Z)
+	B.Square(&A)
+	C.Mul(&p1.X, &p2.X)
+	D.Mul(&p1.Y, &p2.Y)
+	E.Mul(&curveParams.D, &C)
+	E.Mul(&E, &D)
+	F.Sub(&B, &E)
+	G.Add(&B, &E)
+	H.Add(&p1.X, &p1.Y)
+	I.Add(&p2.X, &p2.Y)
+	p.X.Mul(&H, &I).Sub(&p.X, &C).Sub(&p.X, &D).Mul(&p.X, &A).Mul(&p.X, &F)
+	var aC fp.Element
+	aC.Set(&C)
+	mulByA(&aC)
+	p.Y.Sub(&D, &aC).Mul(&p.Y, &A).Mul(&p.Y, &G)
+	p.Z.Mul(&F, &G)
+	return p
+}
+
+func (p *PointProj) Double(p1 *PointProj) *PointProj {
+	var B, C, D, E, F, H, J fp.Element
+	B.Add(&p1.X, &p1.Y).Square(&B)
+	C.Square(&p1.X)
+	D.Square(&p1.Y)
+	E.Set(&C)
+	mulByA(&E)
+	F.Add(&E, &D)
+	H.Square(&p1.Z)
+	J.Sub(&F, &H).Sub(&J, &H)
+	p.X.Sub(&B, &C).Sub(&p.X, &D).Mul(&p.X, &J)
+	p.Y.Sub(&E, &D).Mul(&p.Y, &F)
+	p.Z.Mul(&F, &J)
+	return p
+}
+
+func (p *PointProj) ScalarMultiplication(p1 *PointProj, scalar *big.Int) *PointProj {
+	var _scalar big.Int
+	_scalar.Set(scalar)
+	p.Set(p1)
+	if _scalar.Sign() == -1 {
+		_scalar.Neg(&_scalar)
+		p.Neg(p)
+	}
+	var res PointProj
+	res.setInfinity()
+	const wordSize = bits.UintSize
+	sWords := _scalar.Bits()
+	for i := len(sWords) - 1; i >= 0; i-- {
+		ithWord := sWords[i]
+		for k := 0; k < wordSize; k++ {
+			res.Double(&res)
+			kthBit := (ithWord >> (wordSize - 1 - k)) & 1
+			if kthBit == 1 {
+				res.Add(&res, p)
+			}
+		}
+	}
+	p.Set(&res)
+	return p
 }
