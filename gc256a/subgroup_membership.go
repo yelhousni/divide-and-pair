@@ -96,42 +96,22 @@ func edwardsToPorninMontgomery(p *PointAffine) (u, w fp.Element) {
 	return
 }
 
-// isInSubGroupNaive tests subgroup membership by scalar multiplication by ℓ.
-func (p *PointAffine) isInSubGroupNaive() bool {
-	subgroupInitOnce.Do(initSubgroupConstants)
-	var res PointAffine
-	res.ScalarMultiplication(p, &subgroupOrder)
-	return res.IsZero()
-}
-
-// isInSubGroupPornin tests subgroup membership using Pornin's method
-// (https://eprint.iacr.org/2022/1164):
-// 1 halving + 1 Legendre symbol, division-free with scaling factor e.
-func (p *PointAffine) isInSubGroupPornin() bool {
-	subgroupInitOnce.Do(initSubgroupConstants)
-
-	if isLowOrder(&p.X, &p.Y) {
-		return p.IsZero()
-	}
-
-	u, w := edwardsToPorninMontgomery(p)
-
-	var e fp.Element
-	e.SetOne()
-
-	// === First halving ===
-
+// halvePornin performs one division-free halving on Pornin's Montgomery
+// coordinates (u, w) with scaling factor e. Returns false if not halvable.
+// For GC256A (p ≡ 3 mod 4), when up is NQR, -up is QR.
+func halvePornin(u, w, e *fp.Element) bool {
 	var us, ws fp.Element
-	us.Double(&u)
+	us.Double(u)
 	us.Double(&us)
-	ws.Double(&w)
+	ws.Double(w)
 
 	var wp fp.Element
 	if wp.Sqrt(&us) == nil {
 		return false
 	}
+
 	var up, tmp fp.Element
-	tmp.Square(&e)
+	tmp.Square(e)
 	tmp.Mul(&tmp, &aPrimePorn)
 	up.Sub(&us, &tmp)
 	tmp.Mul(&wp, &ws)
@@ -148,21 +128,50 @@ func (p *PointAffine) isInSubGroupPornin() bool {
 		wp.Mul(&wp, &up)
 		wp.Neg(&wp)
 		var e2 fp.Element
-		e2.Square(&e)
+		e2.Square(e)
 		w.Mul(&sqrtResult, &sqrtMinBp)
-		w.Mul(&w, &e2)
-		e.Mul(&e, &up)
+		w.Mul(w, &e2)
+		e.Mul(e, &up)
 	}
+
 	var e2 fp.Element
-	e2.Square(&e)
+	e2.Square(e)
 	tmp.Mul(&e2, &minusAPornin)
-	u.Square(&w)
-	u.Add(&u, &tmp)
-	tmp.Mul(&w, &wp)
-	u.Sub(&u, &tmp)
+	u.Square(w)
+	u.Add(u, &tmp)
+	tmp.Mul(w, &wp)
+	u.Sub(u, &tmp)
 	u.Halve()
 
-	// === Second halving ===
+	return true
+}
+
+// isInSubGroupNaive tests subgroup membership by scalar multiplication by ℓ.
+func (p *PointAffine) isInSubGroupNaive() bool {
+	subgroupInitOnce.Do(initSubgroupConstants)
+	var res PointAffine
+	res.ScalarMultiplication(p, &subgroupOrder)
+	return res.IsZero()
+}
+
+// isInSubGroupPornin tests subgroup membership using Pornin's method:
+// 1 halving + 1 Legendre symbol, division-free with scaling factor e.
+func (p *PointAffine) isInSubGroupPornin() bool {
+	subgroupInitOnce.Do(initSubgroupConstants)
+
+	if isLowOrder(&p.X, &p.Y) {
+		return p.IsZero()
+	}
+
+	u, w := edwardsToPorninMontgomery(p)
+
+	var e fp.Element
+	e.SetOne()
+
+	if !halvePornin(&u, &w, &e) {
+		return false
+	}
+
 	return u.Legendre() == 1
 }
 
@@ -191,6 +200,95 @@ var pracOpsQuartic = [...]byte{
 	0, 3, 3, 0, 3, 0, 3, 3, 0, 3, 3, 0, 3, 0, 3, 3, 10, // 380-396
 }
 
+// pracLucasV evaluates the Lucas V-sequence using a PRAC differential
+// addition chain. Returns V_n where n is encoded in pracOps.
+func pracLucasV(t *fp.Element, pracOps []byte) fp.Element {
+	var A, B, C fp.Element
+	var T1, T2, T3 fp.Element
+	A.Set(t)
+	B.Set(t)
+	C.Set(&twoFp)
+
+	for _, op := range pracOps {
+		switch op {
+		case 0:
+			A, B = B, A
+		case 1:
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			T2.Mul(&T1, &A)
+			T2.Sub(&T2, &B)
+			B.Mul(&T1, &B)
+			B.Sub(&B, &A)
+			A.Set(&T2)
+		case 2, 4:
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			A.Square(&A)
+			A.Sub(&A, &twoFp)
+			B.Set(&T1)
+		case 3:
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			C.Set(&B)
+			B.Set(&T1)
+		case 5:
+			T1.Mul(&A, &C)
+			T1.Sub(&T1, &B)
+			A.Square(&A)
+			A.Sub(&A, &twoFp)
+			C.Set(&T1)
+		case 6:
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			T2.Square(&A)
+			T2.Sub(&T2, &twoFp)
+			T3.Mul(&T2, &A)
+			T3.Sub(&T3, &A)
+			A.Set(&T3)
+			T3.Mul(&T2, &T1)
+			T3.Sub(&T3, &C)
+			C.Set(&B)
+			B.Set(&T3)
+		case 7:
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			T2.Square(&A)
+			T2.Sub(&T2, &twoFp)
+			T3.Mul(&T2, &A)
+			T3.Sub(&T3, &A)
+			T2.Mul(&T1, &A)
+			T2.Sub(&T2, &B)
+			A.Set(&T3)
+			B.Set(&T2)
+		case 8:
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			T2.Square(&A)
+			T2.Sub(&T2, &twoFp)
+			T3.Mul(&T2, &A)
+			T3.Sub(&T3, &A)
+			C.Mul(&A, &C)
+			C.Sub(&C, &B)
+			A.Set(&T3)
+			B.Set(&T1)
+		case 9:
+			T1.Mul(&C, &B)
+			T1.Sub(&T1, &A)
+			B.Square(&B)
+			B.Sub(&B, &twoFp)
+			C.Set(&T1)
+		case 10:
+			A.Mul(&A, &B)
+			A.Sub(&A, &C)
+			B.Set(&A)
+			C.Set(&twoFp)
+		}
+	}
+
+	return A
+}
+
 // isInSubGroupQuartic tests subgroup membership using the torus approach
 // with a PRAC differential addition chain (Montgomery 1992) for the Lucas
 // V-sequence evaluation.
@@ -203,7 +301,6 @@ func (p *PointAffine) isInSubGroupQuartic() bool {
 
 	u, w := edwardsToPorninMontgomery(p)
 
-	// Same alpha construction.
 	var l1 fp2.E2
 	l1.A0.Mul(&quarticLam.A0, &u)
 	l1.A1.Mul(&quarticLam.A1, &u)
@@ -220,7 +317,6 @@ func (p *PointAffine) isInSubGroupQuartic() bool {
 	alpha.Square(&l1)
 	alpha.Mul(&alpha, &conjV1)
 
-	// Projective trace of g = conj(α)/α:
 	var a2, b2, T, N fp.Element
 	a2.Square(&alpha.A0)
 	b2.Square(&alpha.A1)
@@ -228,96 +324,12 @@ func (p *PointAffine) isInSubGroupQuartic() bool {
 	T.Double(&T)
 	N.Add(&a2, &b2)
 
-	// Affine trace: t = T/N
 	var nInv, t fp.Element
 	nInv.Inverse(&N)
 	t.Mul(&T, &nInv)
 
-	// PRAC Lucas V-sequence: maintains A=V_d, B=V_e, C=V_{|d-e|}.
-	var A, B, C fp.Element
-	var T1, T2, T3 fp.Element
-	A.Set(&t)
-	B.Set(&t)
-	C.Set(&twoFp)
-
-	for _, op := range pracOpsQuartic {
-		switch op {
-		case 0: // SWAP
-			A, B = B, A
-		case 1: // CASE1: 3 ops
-			T1.Mul(&A, &B)
-			T1.Sub(&T1, &C)
-			T2.Mul(&T1, &A)
-			T2.Sub(&T2, &B)
-			B.Mul(&T1, &B)
-			B.Sub(&B, &A)
-			A.Set(&T2)
-		case 2, 4: // CASE2, CASE4: 2 ops
-			T1.Mul(&A, &B)
-			T1.Sub(&T1, &C)
-			A.Square(&A)
-			A.Sub(&A, &twoFp)
-			B.Set(&T1)
-		case 3: // CASE3: 1 op
-			T1.Mul(&A, &B)
-			T1.Sub(&T1, &C)
-			C.Set(&B)
-			B.Set(&T1)
-		case 5: // CASE5: 2 ops
-			T1.Mul(&A, &C)
-			T1.Sub(&T1, &B)
-			A.Square(&A)
-			A.Sub(&A, &twoFp)
-			C.Set(&T1)
-		case 6: // CASE6: 4 ops
-			T1.Mul(&A, &B)
-			T1.Sub(&T1, &C)
-			T2.Square(&A)
-			T2.Sub(&T2, &twoFp)
-			T3.Mul(&T2, &A)
-			T3.Sub(&T3, &A)
-			A.Set(&T3)
-			T3.Mul(&T2, &T1)
-			T3.Sub(&T3, &C)
-			C.Set(&B)
-			B.Set(&T3)
-		case 7: // CASE7: 4 ops
-			T1.Mul(&A, &B)
-			T1.Sub(&T1, &C)
-			T2.Square(&A)
-			T2.Sub(&T2, &twoFp)
-			T3.Mul(&T2, &A)
-			T3.Sub(&T3, &A)
-			T2.Mul(&T1, &A)
-			T2.Sub(&T2, &B)
-			A.Set(&T3)
-			B.Set(&T2)
-		case 8: // CASE8: 4 ops
-			T1.Mul(&A, &B)
-			T1.Sub(&T1, &C)
-			T2.Square(&A)
-			T2.Sub(&T2, &twoFp)
-			T3.Mul(&T2, &A)
-			T3.Sub(&T3, &A)
-			C.Mul(&A, &C)
-			C.Sub(&C, &B)
-			A.Set(&T3)
-			B.Set(&T1)
-		case 9: // CASE9: 2 ops
-			T1.Mul(&C, &B)
-			T1.Sub(&T1, &A)
-			B.Square(&B)
-			B.Sub(&B, &twoFp)
-			C.Set(&T1)
-		case 10: // FINAL: 1 op
-			A.Mul(&A, &B)
-			A.Sub(&A, &C)
-			B.Set(&A)
-			C.Set(&twoFp)
-		}
-	}
-
-	return A.Equal(&twoFp)
+	result := pracLucasV(&t, pracOpsQuartic[:])
+	return result.Equal(&twoFp)
 }
 
 // IsInSubGroup tests subgroup membership using the fastest available method.

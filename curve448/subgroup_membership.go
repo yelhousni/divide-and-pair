@@ -117,6 +117,63 @@ func edwardsToPorninMontgomery(p *PointAffine) (u, w fp.Element) {
 	return
 }
 
+// halvePornin performs one division-free halving on Pornin's Montgomery
+// coordinates (u, w) with scaling factor e. Returns false if not halvable.
+// For curve448 (p ≡ 3 mod 4), when up is NQR, -up is QR.
+func halvePornin(u, w, e *fp.Element) bool {
+	// Inverse iso: (u, w) -> (4u, 2w)
+	var us, ws fp.Element
+	us.Double(u)
+	us.Double(&us)
+	ws.Double(w)
+
+	// Inverse psi2: need sqrt(us). If us is not a QR, point cannot be halved.
+	var wp fp.Element
+	if wp.Sqrt(&us) == nil {
+		return false
+	}
+
+	// up = (us - A'*e^2 - wp*ws) / 2
+	var up, tmp fp.Element
+	tmp.Square(e)
+	tmp.Mul(&tmp, &aPrimePorn)
+	up.Sub(&us, &tmp)
+	tmp.Mul(&wp, &ws)
+	up.Sub(&up, &tmp)
+	up.Halve()
+
+	// Inverse psi1.
+	var sqrtResult fp.Element
+	if sqrtResult.Sqrt(&up) != nil {
+		// up is QR
+		w.Set(&sqrtResult)
+	} else {
+		// up is NQR: sqrt(-up) exists (p ≡ 3 mod 4)
+		var negUp fp.Element
+		negUp.Neg(&up)
+		sqrtResult.Sqrt(&negUp)
+		wp.Mul(&wp, &up)
+		wp.Neg(&wp)
+		var e2 fp.Element
+		e2.Square(e)
+		w.Mul(&sqrtResult, &sqrtMinBp)
+		w.Mul(w, &e2)
+		e.Mul(e, &up)
+	}
+
+	// u = (w^2 + (-A)*e^2 - w*wp) / 2
+	var e2 fp.Element
+	e2.Square(e)
+	tmp.Mul(&e2, &minusAPornin)
+	u.Square(w)
+	u.Add(u, &tmp)
+	tmp.Mul(w, &wp)
+	u.Sub(u, &tmp)
+	u.Halve()
+
+	return true
+}
+
 // isInSubGroupNaive tests subgroup membership by scalar multiplication by ℓ.
 func (p *PointAffine) isInSubGroupNaive() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
@@ -127,15 +184,7 @@ func (p *PointAffine) isInSubGroupNaive() bool {
 
 // isInSubGroupPornin tests subgroup membership using Pornin's method
 // (https://eprint.iacr.org/2022/1164):
-// 2 halvings on the isogenous Montgomery curve + 1 Legendre symbol.
-//
-// The algorithm uses isogenies psi1, psi2 and an isomorphism iso such that
-// 2*P = iso(psi2(psi1(P))). To halve, we invert iso, psi2, psi1.
-// A point is in the prime-order subgroup iff it can be halved twice
-// (checked via QR tests) and the final u-coordinate is a QR.
-//
-// Following crrl (Pornin's implementation), we track a scaling factor e
-// to avoid divisions when up is not a QR.
+// 1 halving on the isogenous Montgomery curve + 1 Legendre symbol.
 func (p *PointAffine) isInSubGroupPornin() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 
@@ -145,68 +194,13 @@ func (p *PointAffine) isInSubGroupPornin() bool {
 
 	u, w := edwardsToPorninMontgomery(p)
 
-	// We are on Curve(A, B) with e = 1 (affine).
-	// Actual curve is Curve(A*e^2, B*e^4).
 	var e fp.Element
 	e.SetOne()
 
-	// === First halving ===
-
-	// Inverse iso: (u, w) -> (4u, 2w) on Curve(As*e^2, Bs*e^4)
-	var us, ws fp.Element
-	us.Double(&u)
-	us.Double(&us) // 4u
-	ws.Double(&w)  // 2w
-
-	// Inverse psi2: need sqrt(us). If us is not a QR, point cannot be halved.
-	var wp fp.Element
-	if wp.Sqrt(&us) == nil {
+	if !halvePornin(&u, &w, &e) {
 		return false
 	}
-	// up = (us - A'*e^2 - wp*ws) / 2
-	var up, tmp fp.Element
-	tmp.Square(&e)
-	tmp.Mul(&tmp, &aPrimePorn)
-	up.Sub(&us, &tmp)
-	tmp.Mul(&wp, &ws)
-	up.Sub(&up, &tmp)
-	up.Halve()
 
-	// Inverse psi1.
-	// If up is a QR: w = sqrt(up), proceed normally.
-	// If up is NQR (p ≡ 3 mod 4 → -up is QR):
-	//   Switch to isomorphic curve:
-	//     wp' = -wp*up, e' = e*up
-	//     w = sqrt(-up) * sqrt(-Bp) * e^2
-	var sqrtResult fp.Element
-	if sqrtResult.Sqrt(&up) != nil {
-		// up is QR
-		w.Set(&sqrtResult)
-	} else {
-		// up is NQR: sqrt(-up) exists
-		var negUp fp.Element
-		negUp.Neg(&up)
-		sqrtResult.Sqrt(&negUp)
-		wp.Mul(&wp, &up)
-		wp.Neg(&wp)
-		var e2 fp.Element
-		e2.Square(&e)
-		w.Mul(&sqrtResult, &sqrtMinBp)
-		w.Mul(&w, &e2)
-		e.Mul(&e, &up)
-	}
-	// u = (w^2 + (-A)*e^2 - w*wp) / 2
-	var e2 fp.Element
-	e2.Square(&e)
-	tmp.Mul(&e2, &minusAPornin)
-	u.Square(&w)
-	u.Add(&u, &tmp)
-	tmp.Mul(&w, &wp)
-	u.Sub(&u, &tmp)
-	u.Halve()
-
-	// === Second halving ===
-	// Only need Legendre symbol of u to check if it can be halved again.
 	return u.Legendre() == 1
 }
 
@@ -245,56 +239,16 @@ var pracOpsQuartic = [592]byte{
 	1, 3, 0, 3, 3, 0, 4, 4, 4, 4, 3, 10,
 }
 
-// isInSubGroupQuartic tests subgroup membership using the torus approach
-// with a PRAC differential addition chain (Montgomery 1992) for the Lucas
-// V-sequence evaluation. PRAC uses 632 field ops vs 890 for the binary ladder.
-func (p *PointAffine) isInSubGroupQuartic() bool {
-	subgroupInitOnce.Do(initSubgroupConstants)
-
-	if isLowOrder(&p.X, &p.Y) {
-		return p.IsZero()
-	}
-
-	u, w := edwardsToPorninMontgomery(p)
-
-	// Same alpha construction.
-	var l1 fp2.E2
-	l1.A0.Mul(&quarticLam.A0, &u)
-	l1.A1.Mul(&quarticLam.A1, &u)
-	l1.A0.Sub(&w, &l1.A0)
-	l1.A0.Sub(&l1.A0, &quarticC.A0)
-	l1.A1.Neg(&l1.A1)
-	l1.A1.Sub(&l1.A1, &quarticC.A1)
-
-	var conjV1 fp2.E2
-	conjV1.A0.Sub(&u, &quarticConjRe)
-	conjV1.A1.Set(&quarticConjIm)
-
-	var alpha fp2.E2
-	alpha.Square(&l1)
-	alpha.Mul(&alpha, &conjV1)
-
-	// Projective trace of g = conj(α)/α:
-	var a2, b2, T, N fp.Element
-	a2.Square(&alpha.A0)
-	b2.Square(&alpha.A1)
-	T.Sub(&a2, &b2)
-	T.Double(&T)
-	N.Add(&a2, &b2)
-
-	// Affine trace: t = T/N
-	var nInv, t fp.Element
-	nInv.Inverse(&N)
-	t.Mul(&T, &nInv)
-
-	// PRAC Lucas V-sequence: maintains A=V_d, B=V_e, C=V_{|d-e|}.
+// pracLucasV evaluates the Lucas V-sequence V_{(p+1)/4}(t) using a PRAC
+// differential addition chain. Returns V_n where n is encoded in pracOps.
+func pracLucasV(t *fp.Element, pracOps []byte) fp.Element {
 	var A, B, C fp.Element
 	var T1, T2, T3 fp.Element
-	A.Set(&t)
-	B.Set(&t)
+	A.Set(t)
+	B.Set(t)
 	C.Set(&twoFp)
 
-	for _, op := range pracOpsQuartic {
+	for _, op := range pracOps {
 		switch op {
 		case 0: // SWAP
 			A, B = B, A
@@ -371,7 +325,53 @@ func (p *PointAffine) isInSubGroupQuartic() bool {
 		}
 	}
 
-	return A.Equal(&twoFp)
+	return A
+}
+
+// isInSubGroupQuartic tests subgroup membership using the torus approach
+// with a PRAC differential addition chain (Montgomery 1992) for the Lucas
+// V-sequence evaluation. PRAC uses 632 field ops vs 890 for the binary ladder.
+func (p *PointAffine) isInSubGroupQuartic() bool {
+	subgroupInitOnce.Do(initSubgroupConstants)
+
+	if isLowOrder(&p.X, &p.Y) {
+		return p.IsZero()
+	}
+
+	u, w := edwardsToPorninMontgomery(p)
+
+	// Alpha construction.
+	var l1 fp2.E2
+	l1.A0.Mul(&quarticLam.A0, &u)
+	l1.A1.Mul(&quarticLam.A1, &u)
+	l1.A0.Sub(&w, &l1.A0)
+	l1.A0.Sub(&l1.A0, &quarticC.A0)
+	l1.A1.Neg(&l1.A1)
+	l1.A1.Sub(&l1.A1, &quarticC.A1)
+
+	var conjV1 fp2.E2
+	conjV1.A0.Sub(&u, &quarticConjRe)
+	conjV1.A1.Set(&quarticConjIm)
+
+	var alpha fp2.E2
+	alpha.Square(&l1)
+	alpha.Mul(&alpha, &conjV1)
+
+	// Projective trace of g = conj(α)/α:
+	var a2, b2, T, N fp.Element
+	a2.Square(&alpha.A0)
+	b2.Square(&alpha.A1)
+	T.Sub(&a2, &b2)
+	T.Double(&T)
+	N.Add(&a2, &b2)
+
+	// Affine trace: t = T/N
+	var nInv, t fp.Element
+	nInv.Inverse(&N)
+	t.Mul(&T, &nInv)
+
+	result := pracLucasV(&t, pracOpsQuartic[:])
+	return result.Equal(&twoFp)
 }
 
 // IsInSubGroup tests subgroup membership using the fastest available method.

@@ -57,38 +57,25 @@ func TestIsInSubGroupTate(t *testing.T) {
 
 // Benchmarks
 
-func BenchmarkIsInSubGroupNaive(b *testing.B) {
+func benchSubgroup(b *testing.B, method func(*PointAffine) bool) {
 	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.isInSubGroupNaive()
+		method(&p)
 	}
+}
+
+func BenchmarkIsInSubGroupNaive(b *testing.B) {
+	benchSubgroup(b, (*PointAffine).isInSubGroupNaive)
 }
 
 func BenchmarkIsInSubGroupTate(b *testing.B) {
-	params := curveParameters()
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		p.isInSubGroupTate()
-	}
+	benchSubgroup(b, (*PointAffine).isInSubGroupTate)
 }
 
 func BenchmarkIsInSubGroupEndo(b *testing.B) {
-	params := curveParameters()
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		p.isInSubGroupEndo()
-	}
+	benchSubgroup(b, (*PointAffine).isInSubGroupEndo)
 }
