@@ -17,7 +17,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bits-and-blooms/bitset"
 	"github.com/consensys/gnark-crypto/field/hash"
 	"github.com/consensys/gnark-crypto/field/pool"
 )
@@ -659,39 +658,6 @@ func _reduceGeneric(z *Element) {
 		z[2], b = bits.Sub64(z[2], q2, b)
 		z[3], _ = bits.Sub64(z[3], q3, b)
 	}
-}
-
-// BatchInvert returns a new slice with every element inverted.
-// Uses Montgomery batch inversion trick
-func BatchInvert(a []Element) []Element {
-	res := make([]Element, len(a))
-	if len(a) == 0 {
-		return res
-	}
-
-	zeroes := bitset.New(uint(len(a)))
-	accumulator := One()
-
-	for i := range len(a) {
-		if a[i].IsZero() {
-			zeroes.Set(uint(i))
-			continue
-		}
-		res[i] = accumulator
-		accumulator.Mul(&accumulator, &a[i])
-	}
-
-	accumulator.Inverse(&accumulator)
-
-	for i := len(a) - 1; i >= 0; i-- {
-		if zeroes.Test(uint(i)) {
-			continue
-		}
-		res[i].Mul(&res[i], &accumulator)
-		accumulator.Mul(&accumulator, &a[i])
-	}
-
-	return res
 }
 
 func _butterflyGeneric(a, b *Element) {
