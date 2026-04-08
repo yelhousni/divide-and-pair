@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	fp "github.com/yelhousni/divide-and-pair/gc256a/fp"
+	fp2 "github.com/yelhousni/divide-and-pair/gc256a/fp2"
 )
 
 var (
@@ -17,6 +18,13 @@ var (
 	minusAPornin     fp.Element // -A
 	sqrtMinBp        fp.Element // sqrt(-B')
 	subgroupOrder    big.Int
+
+	twoFp fp.Element
+
+	quarticLam    fp2.E2
+	quarticC      fp2.E2
+	quarticConjRe fp.Element
+	quarticConjIm fp.Element
 )
 
 func initSubgroupConstants() {
@@ -46,6 +54,15 @@ func initSubgroupConstants() {
 	sqrtMinBp.Sqrt(&negBp)
 
 	subgroupOrder.Set(&curveParams.Order)
+
+	twoFp.SetUint64(2)
+
+	quarticLam.A0.SetString("98978386755764401450203974662446294613320410218429152052753462557826881889291")
+	quarticLam.A1.SetString("21937508357931127973100225998923042910701061142013484653662311276571639819534")
+	quarticC.A0.SetString("103296244185588961271874791050375166492124013234565164938412440660178304685659")
+	quarticC.A1.SetString("43637342742974478728501216132433420977611717423370731437025443950094608957872")
+	quarticConjRe.SetString("113067675126841589491736716507523150207271257787167487230024979784498777963931")
+	quarticConjIm.SetString("3525713647912769663176164827195583175754606956748302963316409412254261816257")
 }
 
 // isLowOrder checks if an affine point (X, Y) is a low-order point.
@@ -149,7 +166,161 @@ func (p *PointAffine) isInSubGroupPornin() bool {
 	return u.Legendre() == 1
 }
 
+// pracOpsQuartic encodes the PRAC differential addition chain for (p+1)/4.
+// Cost: 470 field ops (vs 506 for binary ladder, 7% saving).
+var pracOpsQuartic = [...]byte{
+	10, 3, 10, 3, 0, 3, 10, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, // 0-19
+	0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, // 20-39
+	0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, // 40-59
+	0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, // 60-79
+	1, 3, 0, 7, 3, 0, 3, 2, 0, 9, 4, 4, 3, 3, 3, 0, 3, 0, 1, 3, // 80-99
+	0, 3, 0, 4, 5, 4, 5, 4, 3, 3, 0, 3, 0, 5, 5, 4, 4, 5, 4, 4, // 100-119
+	3, 3, 0, 3, 3, 0, 3, 0, 3, 3, 3, 0, 5, 3, 3, 3, 0, 3, 0, 3, // 120-139
+	2, 0, 4, 4, 3, 0, 3, 0, 3, 3, 0, 5, 3, 3, 0, 3, 3, 0, 3, 0, // 140-159
+	3, 3, 0, 3, 0, 3, 3, 0, 3, 3, 3, 0, 3, 0, 3, 2, 0, 4, 4, 3, // 160-179
+	0, 3, 0, 3, 3, 3, 0, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 4, 4, 5, // 180-199
+	5, 5, 4, 4, 5, 5, 4, 4, 4, 5, 4, 4, 5, 4, 4, 5, 4, 4, 5, 5, // 200-219
+	4, 5, 4, 5, 4, 5, 5, 5, 4, 4, 4, 4, 5, 4, 5, 4, 5, 5, 4, 4, // 220-239
+	5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 4, 4, 4, 5, 5, 4, 5, 5, 4, 4, // 240-259
+	5, 5, 4, 5, 4, 4, 4, 4, 5, 5, 5, 5, 4, 5, 4, 5, 4, 4, 4, 5, // 260-279
+	5, 4, 5, 4, 4, 5, 5, 4, 5, 5, 5, 5, 5, 3, 3, 3, 0, 3, 0, 3, // 280-299
+	0, 3, 3, 3, 0, 4, 3, 0, 3, 0, 5, 4, 3, 3, 0, 4, 3, 3, 0, 1, // 300-319
+	1, 3, 0, 3, 0, 2, 0, 9, 4, 4, 3, 3, 3, 0, 3, 3, 0, 3, 0, 3, // 320-339
+	0, 3, 0, 1, 1, 3, 0, 4, 3, 3, 3, 0, 3, 0, 5, 5, 3, 3, 0, 3, // 340-359
+	1, 3, 0, 5, 4, 5, 5, 5, 4, 5, 5, 5, 3, 3, 0, 3, 0, 6, 3, 3, // 360-379
+	0, 3, 3, 0, 3, 0, 3, 3, 0, 3, 3, 0, 3, 0, 3, 3, 10, // 380-396
+}
+
+// isInSubGroupQuartic tests subgroup membership using the torus approach
+// with a PRAC differential addition chain (Montgomery 1992) for the Lucas
+// V-sequence evaluation.
+func (p *PointAffine) isInSubGroupQuartic() bool {
+	subgroupInitOnce.Do(initSubgroupConstants)
+
+	if isLowOrder(&p.X, &p.Y) {
+		return p.IsZero()
+	}
+
+	u, w := edwardsToPorninMontgomery(p)
+
+	// Same alpha construction.
+	var l1 fp2.E2
+	l1.A0.Mul(&quarticLam.A0, &u)
+	l1.A1.Mul(&quarticLam.A1, &u)
+	l1.A0.Sub(&w, &l1.A0)
+	l1.A0.Sub(&l1.A0, &quarticC.A0)
+	l1.A1.Neg(&l1.A1)
+	l1.A1.Sub(&l1.A1, &quarticC.A1)
+
+	var conjV1 fp2.E2
+	conjV1.A0.Sub(&u, &quarticConjRe)
+	conjV1.A1.Set(&quarticConjIm)
+
+	var alpha fp2.E2
+	alpha.Square(&l1)
+	alpha.Mul(&alpha, &conjV1)
+
+	// Projective trace of g = conj(α)/α:
+	var a2, b2, T, N fp.Element
+	a2.Square(&alpha.A0)
+	b2.Square(&alpha.A1)
+	T.Sub(&a2, &b2)
+	T.Double(&T)
+	N.Add(&a2, &b2)
+
+	// Affine trace: t = T/N
+	var nInv, t fp.Element
+	nInv.Inverse(&N)
+	t.Mul(&T, &nInv)
+
+	// PRAC Lucas V-sequence: maintains A=V_d, B=V_e, C=V_{|d-e|}.
+	var A, B, C fp.Element
+	var T1, T2, T3 fp.Element
+	A.Set(&t)
+	B.Set(&t)
+	C.Set(&twoFp)
+
+	for _, op := range pracOpsQuartic {
+		switch op {
+		case 0: // SWAP
+			A, B = B, A
+		case 1: // CASE1: 3 ops
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			T2.Mul(&T1, &A)
+			T2.Sub(&T2, &B)
+			B.Mul(&T1, &B)
+			B.Sub(&B, &A)
+			A.Set(&T2)
+		case 2, 4: // CASE2, CASE4: 2 ops
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			A.Square(&A)
+			A.Sub(&A, &twoFp)
+			B.Set(&T1)
+		case 3: // CASE3: 1 op
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			C.Set(&B)
+			B.Set(&T1)
+		case 5: // CASE5: 2 ops
+			T1.Mul(&A, &C)
+			T1.Sub(&T1, &B)
+			A.Square(&A)
+			A.Sub(&A, &twoFp)
+			C.Set(&T1)
+		case 6: // CASE6: 4 ops
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			T2.Square(&A)
+			T2.Sub(&T2, &twoFp)
+			T3.Mul(&T2, &A)
+			T3.Sub(&T3, &A)
+			A.Set(&T3)
+			T3.Mul(&T2, &T1)
+			T3.Sub(&T3, &C)
+			C.Set(&B)
+			B.Set(&T3)
+		case 7: // CASE7: 4 ops
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			T2.Square(&A)
+			T2.Sub(&T2, &twoFp)
+			T3.Mul(&T2, &A)
+			T3.Sub(&T3, &A)
+			T2.Mul(&T1, &A)
+			T2.Sub(&T2, &B)
+			A.Set(&T3)
+			B.Set(&T2)
+		case 8: // CASE8: 4 ops
+			T1.Mul(&A, &B)
+			T1.Sub(&T1, &C)
+			T2.Square(&A)
+			T2.Sub(&T2, &twoFp)
+			T3.Mul(&T2, &A)
+			T3.Sub(&T3, &A)
+			C.Mul(&A, &C)
+			C.Sub(&C, &B)
+			A.Set(&T3)
+			B.Set(&T1)
+		case 9: // CASE9: 2 ops
+			T1.Mul(&C, &B)
+			T1.Sub(&T1, &A)
+			B.Square(&B)
+			B.Sub(&B, &twoFp)
+			C.Set(&T1)
+		case 10: // FINAL: 1 op
+			A.Mul(&A, &B)
+			A.Sub(&A, &C)
+			B.Set(&A)
+			C.Set(&twoFp)
+		}
+	}
+
+	return A.Equal(&twoFp)
+}
+
 // IsInSubGroup tests subgroup membership using the fastest available method.
 func (p *PointAffine) IsInSubGroup() bool {
-	return p.isInSubGroupPornin()
+	return p.isInSubGroupQuartic()
 }

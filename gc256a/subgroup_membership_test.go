@@ -138,6 +138,76 @@ func TestLowOrderPoints(t *testing.T) {
 	}
 }
 
+func TestSubgroupQuarticAgreement(t *testing.T) {
+	params := curveParameters()
+
+	nTests := 50
+	for i := 0; i < nTests; i++ {
+		k, _ := rand.Int(rand.Reader, &params.Order)
+		var p PointAffine
+		p.ScalarMultiplication(&params.Base, k)
+
+		pornin := p.isInSubGroupPornin()
+		quartic := p.isInSubGroupQuartic()
+
+		if !pornin || !quartic {
+			t.Fatalf("subgroup point: pornin=%v quartic=%v", pornin, quartic)
+		}
+	}
+	t.Logf("tested %d subgroup points: both methods agree (all true)", nTests)
+
+	// Non-subgroup: order-2 offset
+	var order2Pt PointAffine
+	order2Pt.X.SetZero()
+	order2Pt.Y.SetOne()
+	order2Pt.Y.Neg(&order2Pt.Y)
+
+	nNonSub := 0
+	for i := 0; i < nTests; i++ {
+		k, _ := rand.Int(rand.Reader, &params.Order)
+		if k.Sign() == 0 {
+			continue
+		}
+		var p, q PointAffine
+		p.ScalarMultiplication(&params.Base, k)
+		q.Add(&p, &order2Pt)
+
+		pornin := q.isInSubGroupPornin()
+		quartic := q.isInSubGroupQuartic()
+
+		if pornin || quartic {
+			t.Fatalf("non-subgroup (order-2): pornin=%v quartic=%v", pornin, quartic)
+		}
+		nNonSub++
+	}
+	t.Logf("tested %d non-subgroup points (order-2): all false", nNonSub)
+
+	// Non-subgroup: order-4 offset
+	var order4Pt PointAffine
+	order4Pt.X.SetOne()
+	order4Pt.Y.SetZero()
+
+	nNonSub = 0
+	for i := 0; i < nTests; i++ {
+		k, _ := rand.Int(rand.Reader, &params.Order)
+		if k.Sign() == 0 {
+			continue
+		}
+		var p, q PointAffine
+		p.ScalarMultiplication(&params.Base, k)
+		q.Add(&p, &order4Pt)
+
+		pornin := q.isInSubGroupPornin()
+		quartic := q.isInSubGroupQuartic()
+
+		if pornin || quartic {
+			t.Fatalf("non-subgroup (order-4): pornin=%v quartic=%v", pornin, quartic)
+		}
+		nNonSub++
+	}
+	t.Logf("tested %d non-subgroup points (order-4): all false", nNonSub)
+}
+
 // Benchmarks
 
 func BenchmarkIsInSubGroupNaive(b *testing.B) {
@@ -161,5 +231,17 @@ func BenchmarkIsInSubGroupPornin(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		p.isInSubGroupPornin()
+	}
+}
+
+func BenchmarkIsInSubGroupQuartic(b *testing.B) {
+	params := curveParameters()
+	k, _ := rand.Int(rand.Reader, &params.Order)
+	var p PointAffine
+	p.ScalarMultiplication(&params.Base, k)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		p.isInSubGroupQuartic()
 	}
 }
