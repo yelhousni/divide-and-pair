@@ -19,7 +19,7 @@ Companion code for the article *"Divide-and-Pair: Faster subgroup membership tes
 | **JubJub** | BLS12-381 Fr | −1 | 8 | 8 | 0 | Octic symbol |
 | **FourQ** | Fp² (p = 2¹²⁷ − 1) | −1 | 392 | 392 | 0 | Octic + septic symbols|
 | **Curve448** | p = 2⁴⁴⁸ − 2²²⁴ − 1 | 1 | 4 | 4 (over Fp²) | 0 | Quartic symbol (Fp²) |
-| **GC256A** | p = 2²⁵⁶ − 617 | 1 | 4 | 2 | 1 | Quadratic symbol |
+| **GC256A** | p = 2²⁵⁶ − 617 | 1 | 4 | 4 (over Fp²) | 0 | Quartic symbol (Fp²) |
 
 ## Methods
 
@@ -31,7 +31,7 @@ Companion code for the article *"Divide-and-Pair: Faster subgroup membership tes
 - **Tate** (FourQ): 0 divisions + octic check + septic check.
   - **Octic**: degree-8 Miller function on the Weierstrass model, then torus/trace compression: g = conj(f₈)/f₈ is projected to its trace t ∈ Fp (projectively, no Fp²-inversion), followed by 124 iterations of t → t²−2 (1 Fp-squaring per step). Check trace == 2.
   - **Septic**: degree-7 Miller function with precomputed intermediates. Norm-accumulated: Norm(f₇) = ∏ Norm(ℓᵢ) / ∏ Norm(vⱼ) computed entirely in Fp from individual line norms — no Fp² inversions needed. Then χ₇(f₇) = Norm(f₇)^((p−1)/7) via a single Fp exponentiation.
-- **Quartic over Fp²** (Curve448): since p ≡ 3 mod 4, the quartic character does not exist over Fp, but does over Fp² (embedding degree k = 2 for the 4-torsion). A non-rational 4-torsion point T₄ ∈ E(Fp²)\E(Fp) is used to evaluate a degree-4 Tate pairing, reducing subgroup membership to a single quartic residuosity check in Fp². The torus approach is used: g = conj(α)/α is projected to its trace t ∈ Fp, then a PRAC differential addition chain (Montgomery 1992) evaluates the Lucas V-sequence V_e(t) for e = (p+1)/4. PRAC uses 632 field ops vs 890 for a binary Montgomery ladder (29% saving).
+- **Quartic over Fp²** (Curve448, GC256A): since p ≡ 3 mod 4, the quartic character does not exist over Fp, but does over Fp² (embedding degree k = 2 for the 4-torsion). A non-rational 4-torsion point T₄ ∈ E(Fp²)\E(Fp) is used to evaluate a degree-4 Tate pairing, reducing subgroup membership to a single quartic residuosity check in Fp². The torus approach is used: g = conj(α)/α is projected to its trace t ∈ Fp, then a PRAC differential addition chain (Montgomery 1992) evaluates the Lucas V-sequence V_e(t) for e = (p+1)/4.
 - **Endomorphism** (FourQ): subgroup membership from the FourQ ψ and φ endomorphisms, reducing the order check to a 4-dimensional multi-scalar relation with short scalars.
 
 ## Benchmarks
@@ -70,8 +70,9 @@ AWS r7a (AMD EPYC 9R14), Go 1.24, `go test -bench=. -benchtime=3s`:
 ### GC256A
 | Method | Time | Speedup vs Naive |
 |--------|------|-----------------|
-| Naive | 1,170 µs | 1× |
-| **Pornin** | **21 µs** | **57×** |
+| Naive | 1,177 µs | 1× |
+| Pornin (1 halving + Legendre) | 27 µs | 44× |
+| **Quartic (torus/PRAC)** | **16 µs** | **72×** |
 
 ## Usage
 
@@ -121,6 +122,8 @@ p.IsInSubGroup()           // quartic symbol over Fp² (torus/PRAC)
 - Koshelev, [*Subgroup membership testing on elliptic curves via the Tate pairing*](https://eprint.iacr.org/2022/037), 2022.
 - Costello and Longa, [*FourQ: four-dimensional decompositions on a Q-curve over the Mersenne prime*](https://eprint.iacr.org/2015/565), ASIACRYPT 2015.
 - Weilert, [*Fast Computation of the Biquadratic Residue Symbol*](https://doi.org/10.1007/s00145-002-0131-7), J. Cryptology, 2003.
-- Montgomery, [*Speeding the Pollard and Elliptic Curve Methods of Factorization*](https://doi.org/10.1090/S0025-5718-1987-0866113-7), Math. Comp., 1987. (PRAC chains)
+- Montgomery, [*Evaluating recurrences of form Xm+n = f(Xm, Xn, Xm-n) via Lucas chains*](https://cr.yp.to/bib/1992/montgomery-lucas.pdf). (PRAC chains)
 - [RFC 8032](https://www.rfc-editor.org/rfc/rfc8032) — Curve25519 and Ed448.
 - [RFC 7836](https://www.rfc-editor.org/rfc/rfc7836) — GC256A (GOST R 34.10-2012).
+- McLoughlin, [addchain](https://github.com/mmcloughlin/addchain). Software to generate short addition chains (Go).
+- Bernstein,  https://cr.yp.to/2024/dacbench-20240609.tar.gz. Software to generate PRAC differential addition chains (Python).
