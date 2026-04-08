@@ -1,11 +1,15 @@
 package fp2
 
-import "math/big"
+import (
+	"math/big"
+
+	fp "github.com/yelhousni/divide-and-pair/fourq/fp"
+)
 
 // E2 is an element of Fp2 = Fp[i]/(i² + 1) where p = 2^127 - 1.
 // An element is represented as A0 + A1*i.
 type E2 struct {
-	A0, A1 Element
+	A0, A1 fp.Element
 }
 
 func (z *E2) SetZero() *E2 {
@@ -70,7 +74,7 @@ func (z *E2) Double(x *E2) *E2 {
 // (a+bi)(c+di) = (ac - bd) + (ad + bc)i
 // Karatsuba: (ac-bd) + ((a+b)(c+d) - ac - bd)i
 func (z *E2) Mul(x, y *E2) *E2 {
-	var ac, bd, apb, cpd Element
+	var ac, bd, apb, cpd fp.Element
 	ac.Mul(&x.A0, &y.A0)
 	bd.Mul(&x.A1, &y.A1)
 	apb.Add(&x.A0, &x.A1)
@@ -86,7 +90,7 @@ func (z *E2) Mul(x, y *E2) *E2 {
 // Square sets z = x² and returns z.
 // (a+bi)² = (a²-b²) + 2ab*i = (a+b)(a-b) + 2ab*i
 func (z *E2) Square(x *E2) *E2 {
-	var apb, amb, twoab Element
+	var apb, amb, twoab fp.Element
 	apb.Add(&x.A0, &x.A1)
 	amb.Sub(&x.A0, &x.A1)
 	twoab.Mul(&x.A0, &x.A1)
@@ -98,7 +102,7 @@ func (z *E2) Square(x *E2) *E2 {
 }
 
 // MulByElement sets z = x * a (where a is in Fp) and returns z.
-func (z *E2) MulByElement(x *E2, a *Element) *E2 {
+func (z *E2) MulByElement(x *E2, a *fp.Element) *E2 {
 	z.A0.Mul(&x.A0, a)
 	z.A1.Mul(&x.A1, a)
 	return z
@@ -112,8 +116,8 @@ func (z *E2) Conjugate(x *E2) *E2 {
 }
 
 // Norm returns the norm a² + b² in Fp.
-func (z *E2) Norm() Element {
-	var a2, b2 Element
+func (z *E2) Norm() fp.Element {
+	var a2, b2 fp.Element
 	a2.Square(&z.A0)
 	b2.Square(&z.A1)
 	a2.Add(&a2, &b2)
@@ -126,7 +130,7 @@ func (z *E2) Inverse(x *E2) *E2 {
 	norm := x.Norm()
 	norm.Inverse(&norm)
 	z.A0.Mul(&x.A0, &norm)
-	var negB Element
+	var negB fp.Element
 	negB.Neg(&x.A1)
 	z.A1.Mul(&negB, &norm)
 	return z
@@ -175,7 +179,7 @@ func (z *E2) SetRandom() (*E2, error) {
 // For x = a+bi with a²+b² = 1: x² = (2a²-1) + ((a+b)²-1)i.
 // Cost: 2S instead of 2M.
 func (z *E2) CyclotomicSquare(x *E2) *E2 {
-	var a2, apb2 Element
+	var a2, apb2 fp.Element
 	a2.Square(&x.A0)        // a²
 	apb2.Add(&x.A0, &x.A1)  // a+b
 	apb2.Square(&apb2)      // (a+b)²
@@ -187,7 +191,7 @@ func (z *E2) CyclotomicSquare(x *E2) *E2 {
 	return z
 }
 
-var one Element
+var one fp.Element
 
 func init() {
 	one.SetOne()

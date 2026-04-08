@@ -1,4 +1,4 @@
-package fp2
+package fp
 
 // ExpBySepticFp computes z = x^((p-1)/7) in Fp using the same addition chain
 // as E2.ExpBySeptic but with Fp squarings and multiplications.

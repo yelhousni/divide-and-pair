@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"sync"
 
+	fp "github.com/yelhousni/divide-and-pair/fourq/fp"
 	fp2 "github.com/yelhousni/divide-and-pair/fourq/fp2"
 )
 
@@ -270,7 +271,7 @@ func (p *PointAffine) isInSubGroupTate() bool {
 	// Since Norm(f7)^((p-1)/7) = f7^((p+1)(p-1)/7) = f7^((p²-1)/7),
 	// we compute the Norm first (cheap, in Fp) then exponentiate in Fp.
 	normF7 := f7.Norm()
-	var septicResult fp2.Element
+	var septicResult fp.Element
 	septicResult.ExpBySepticFp(normF7)
 	return septicResult.IsOne()
 }
@@ -383,7 +384,7 @@ func (p *PointAffine) isInSubGroupTateExp1() bool {
 	f7.Mul(&f7, &gVert)
 
 	normF7 := f7.Norm()
-	var septicResult fp2.Element
+	var septicResult fp.Element
 	septicResult.ExpBySepticFp(normF7)
 	return septicResult.IsOne()
 }
@@ -496,7 +497,7 @@ func (p *PointAffine) isInSubGroupTateExp2() bool {
 	f7.Mul(&f7, &gVert)
 
 	normF7 := f7.Norm()
-	var septicResult fp2.Element
+	var septicResult fp.Element
 	septicResult.ExpBySepticFp(normF7)
 	return septicResult.IsOne()
 }
@@ -547,17 +548,17 @@ func (p *PointAffine) isInSubGroupTateExp3() bool {
 	// g = conj(f8)/f8. Trace: t = g + g⁻¹ = (conj(f8)²+f8²)/Norm(f8)
 	// = 2(a²-b²)/(a²+b²) for f8 = a+bi.
 	// Compute projectively: T = 2(a²-b²), N = a²+b² = Norm(f8).
-	var a2, b2 fp2.Element
+	var a2, b2 fp.Element
 	a2.Square(&f8.A0)
 	b2.Square(&f8.A1)
-	var T, N fp2.Element
+	var T, N fp.Element
 	T.Sub(&a2, &b2)
 	T.Double(&T)       // T = 2(a²-b²)
 	N.Add(&a2, &b2)    // N = Norm(f8)
 
 	// 124 iterations of t → t²−2 in projective form:
 	// (T, N) → (T²−2N², N²)
-	var T2, N2, twoN2 fp2.Element
+	var T2, N2, twoN2 fp.Element
 	for range 124 {
 		T2.Square(&T)
 		N2.Square(&N)
@@ -567,7 +568,7 @@ func (p *PointAffine) isInSubGroupTateExp3() bool {
 	}
 
 	// Check t == 2, i.e., T == 2·N
-	var twoN fp2.Element
+	var twoN fp.Element
 	twoN.Double(&N)
 	if !T.Equal(&twoN) {
 		return false
@@ -626,7 +627,7 @@ func (p *PointAffine) isInSubGroupTateExp3() bool {
 	f7.Mul(&f7, &gVert)
 
 	normF7 := f7.Norm()
-	var septicResult fp2.Element
+	var septicResult fp.Element
 	septicResult.ExpBySepticFp(normF7)
 	return septicResult.IsOne()
 }

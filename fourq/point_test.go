@@ -7,13 +7,14 @@ import (
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
+	fp "github.com/yelhousni/divide-and-pair/fourq/fp"
 	fp2 "github.com/yelhousni/divide-and-pair/fourq/fp2"
 )
 
 func GenBigInt() gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
 		var s big.Int
-		var b [fp2.Bytes]byte
+		var b [fp.Bytes]byte
 		_, err := rand.Read(b[:])
 		if err != nil {
 			panic(err)

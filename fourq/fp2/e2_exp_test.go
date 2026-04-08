@@ -3,10 +3,12 @@ package fp2
 import (
 	"math/big"
 	"testing"
+
+	fp "github.com/yelhousni/divide-and-pair/fourq/fp"
 )
 
 func TestExpBySeptic(t *testing.T) {
-	p := Modulus()
+	p := fp.Modulus()
 	exp := new(big.Int).Sub(p, big.NewInt(1))
 	exp.Div(exp, big.NewInt(7))
 
@@ -23,7 +25,7 @@ func TestExpBySeptic(t *testing.T) {
 }
 
 func BenchmarkE2ExpNaive(b *testing.B) {
-	p := Modulus()
+	p := fp.Modulus()
 	exp := new(big.Int).Sub(p, big.NewInt(1))
 	exp.Div(exp, big.NewInt(7))
 
