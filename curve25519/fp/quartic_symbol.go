@@ -145,6 +145,10 @@ var (
 	biPiImAbs big.Int // |piIm| (positive) — avoids per-call Neg
 	biNormB   big.Int // = q
 	biOne     = big.NewInt(1)
+
+	// sqrtMinusOneFp is sqrt(-1) mod q, used by QuarticSymbolExp and QuarticSymbolExpFilippo.
+	sqrtMinusOneFp Element
+	minusOneFp     Element
 )
 
 func init() {
@@ -160,6 +164,10 @@ func init() {
 	t1.Mul(&biPiRe, &biPiRe)
 	t2.Mul(&biPiIm, &biPiIm)
 	biNormB.Add(&t1, &t2)
+
+	sqrtMinusOneFp.SetString("19681161376707505956807079304988542015446066515923890162744021073123829784752")
+	minusOneFp.SetOne()
+	minusOneFp.Neg(&minusOneFp)
 }
 
 // phase1Scratch holds pre-allocated big.Int temporaries for Phase 1.
@@ -180,9 +188,9 @@ var phase1Pool = sync.Pool{
 	},
 }
 
-// QuarticSymbol computes χ₄(z) = z^((q-1)/4) mod q using Weilert's algorithm.
-// Returns 0 (χ₄=1), 1 (χ₄=i), 2 (χ₄=-1), or 3 (χ₄=-i).
-func (z *Element) QuarticSymbol() uint8 {
+// quarticSymbolWeilert implements the Weilert GCD algorithm for the quartic symbol.
+// The fallback parameter is called if the GCD exceeds 200 iterations.
+func quarticSymbolWeilert(z *Element, fallback func(*Element) uint8) uint8 {
 	if z.IsZero() {
 		return 0
 	}
@@ -217,7 +225,6 @@ func (z *Element) QuarticSymbol() uint8 {
 	// Remove (1+i) factors using only parity checks (no big.Int.Mod).
 	m := int64(0)
 	for biParity(&sc.e) == biParity(&sc.f) {
-		// (e+f)/2, (f-e)/2
 		sc.s.Add(&sc.e, &sc.f)
 		sc.d.Sub(&sc.f, &sc.e)
 		sc.e.Rsh(&sc.s, 1)
@@ -256,7 +263,7 @@ func (z *Element) QuarticSymbol() uint8 {
 	// Phase 2: pure uint64 Euclidean GCD.
 	for iter := 0; ; iter++ {
 		if iter > 200 {
-			return z.QuarticSymbolExp()
+			return fallback(z)
 		}
 		if bIm.isZero() && bRe.hi == 0 && bRe.lo <= 1 {
 			break
@@ -296,6 +303,18 @@ func (z *Element) QuarticSymbol() uint8 {
 	return uint8(result & 3)
 }
 
+// QuarticSymbol computes χ₄(z) = z^((q-1)/4) mod q using Weilert's algorithm.
+// Returns 0 (χ₄=1), 1 (χ₄=i), 2 (χ₄=-1), or 3 (χ₄=-i).
+func (z *Element) QuarticSymbol() uint8 {
+	return quarticSymbolWeilert(z, (*Element).QuarticSymbolExp)
+}
+
+// QuarticSymbolFilippo is QuarticSymbol (Weilert GCD) but falls back to
+// QuarticSymbolExpFilippo instead of QuarticSymbolExp.
+func (z *Element) QuarticSymbolFilippo() uint8 {
+	return quarticSymbolWeilert(z, (*Element).QuarticSymbolExpFilippo)
+}
+
 func unitPow128(re, im signed128) int64 {
 	if im.isZero() {
 		if !re.neg {
@@ -328,8 +347,6 @@ func reciprocityLow(a, c int64) int64 {
 
 // biParity returns z mod 2 (0 or 1), without allocation.
 func biParity(z *big.Int) uint {
-	// big.Int.Bit(0) returns the 0th bit, works correctly for negative (two's complement).
-	// But we want mathematical mod 2: for negative, -n mod 2 = n mod 2.
 	w := z.Bits()
 	if len(w) == 0 {
 		return 0
@@ -391,119 +408,8 @@ func bigToS128(s *signed128, x *big.Int) {
 	}
 }
 
-// QuarticSymbolFilippo is QuarticSymbol (Weilert GCD) but falls back to
-// QuarticSymbolExpFilippo instead of QuarticSymbolExp.
-func (z *Element) QuarticSymbolFilippo() uint8 {
-	if z.IsZero() {
-		return 0
-	}
-
-	bRe := signed128{piRe0, piRe1, false}
-	bIm := signed128{piIm0, piIm1, true}
-	result := int64(0)
-	var aRe, aIm signed128
-
-	// Phase 1: one big Euclidean step (pooled big.Int to avoid allocation).
-	sc := phase1Pool.Get().(*phase1Scratch)
-	z.BigInt(&sc.zBI)
-
-	sc.numRe.Mul(&sc.zBI, &biPiRe)
-	sc.numIm.Mul(&sc.zBI, &biPiImAbs)
-	roundDivBI(&sc.qRe, &sc.numRe, &biNormB, &sc.t1, &sc.t2)
-	roundDivBI(&sc.qIm, &sc.numIm, &biNormB, &sc.t1, &sc.t2)
-
-	sc.t1.Mul(&sc.qRe, &biPiRe)
-	sc.t2.Mul(&sc.qIm, &biPiIm)
-	sc.e.Sub(&sc.t1, &sc.t2)
-	sc.e.Sub(&sc.zBI, &sc.e)
-	sc.t1.Mul(&sc.qRe, &biPiIm)
-	sc.t2.Mul(&sc.qIm, &biPiRe)
-	sc.f.Add(&sc.t1, &sc.t2)
-	sc.f.Neg(&sc.f)
-
-	if sc.e.Sign() == 0 && sc.f.Sign() == 0 {
-		return 0
-	}
-
-	m := int64(0)
-	for biParity(&sc.e) == biParity(&sc.f) {
-		sc.s.Add(&sc.e, &sc.f)
-		sc.d.Sub(&sc.f, &sc.e)
-		sc.e.Rsh(&sc.s, 1)
-		sc.f.Rsh(&sc.d, 1)
-		m++
-	}
-
-	nc := int64(0)
-	for n := int64(0); n < 4; n++ {
-		if biParity(&sc.f) == 0 {
-			sc.s.Add(&sc.e, &sc.f)
-			if biMod4(&sc.s) == 1 {
-				nc = n
-				break
-			}
-		}
-		sc.s.Set(&sc.e)
-		sc.e.Neg(&sc.f)
-		sc.f.Set(&sc.s)
-		nc = n + 1
-	}
-	np := (4 - nc) % 4
-
-	bl := int64(piRe0 & 63)
-	dl := (-(int64(piIm0 & 63))) & 63
-	el := biMod8(&sc.e)
-	result = (m*sup1PlusILow(bl, dl) + int64(np)*supILow(bl&7) + 2*reciprocityLow(el, bl&7)) & 3
-
-	bigToS128(&aRe, &sc.e)
-	bigToS128(&aIm, &sc.f)
-	phase1Pool.Put(sc)
-	aRe, bRe = bRe, aRe
-	aIm, bIm = bIm, aIm
-
-	// Phase 2: pure uint64 Euclidean GCD.
-	for iter := 0; ; iter++ {
-		if iter > 200 {
-			return z.QuarticSymbolExpFilippo()
-		}
-		if bIm.isZero() && bRe.hi == 0 && bRe.lo <= 1 {
-			break
-		}
-		if bRe.isZero() && bIm.hi == 0 && bIm.lo <= 1 {
-			break
-		}
-		if aRe.isZero() && aIm.isZero() {
-			return 0
-		}
-		isAUnit := (aIm.isZero() && aRe.hi == 0 && aRe.lo <= 1) ||
-			(aRe.isZero() && aIm.hi == 0 && aIm.lo <= 1)
-		if isAUnit {
-			k := unitPow128(aRe, aIm)
-			result = (result + int64(k)*supILow(bRe.low8())) & 3
-			break
-		}
-		eRe, eIm := gaussRem128(aRe, aIm, bRe, bIm)
-		if eRe.isZero() && eIm.isZero() {
-			return 0
-		}
-		m := int64(0)
-		for eRe.parity() == eIm.parity() {
-			divBy1PlusI128(&eRe, &eIm)
-			m++
-		}
-		nc := makePrimary128(&eRe, &eIm)
-		np := (4 - nc) % 4
-		s1pi := sup1PlusILow(bRe.low64(), bIm.low64())
-		sI := supILow(bRe.low8())
-		rec := reciprocityLow(eRe.low8(), bRe.low8())
-		result = (result + m*s1pi + int64(np)*sI + 2*rec) & 3
-		aRe, aIm = bRe, bIm
-		bRe, bIm = eRe, eIm
-	}
-
-	return uint8(result & 3)
-}
-
+// QuarticSymbolExp computes the quartic symbol via addition chain exponentiation.
+// χ₄(z) = z·(z^((p-5)/8))². Returns 0,1,2,3.
 func (z *Element) QuarticSymbolExp() uint8 {
 	if z.IsZero() {
 		return 0
@@ -516,15 +422,10 @@ func (z *Element) QuarticSymbolExp() uint8 {
 	if result.IsOne() {
 		return 0
 	}
-	var sqrtMinusOne Element
-	sqrtMinusOne.SetString("19681161376707505956807079304988542015446066515923890162744021073123829784752")
-	if result.Equal(&sqrtMinusOne) {
+	if result.Equal(&sqrtMinusOneFp) {
 		return 1
 	}
-	var minusOne Element
-	minusOne.SetOne()
-	minusOne.Neg(&minusOne)
-	if result.Equal(&minusOne) {
+	if result.Equal(&minusOneFp) {
 		return 2
 	}
 	return 3

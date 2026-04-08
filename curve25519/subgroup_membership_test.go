@@ -123,6 +123,24 @@ func TestSubgroupAgreement(t *testing.T) {
 	t.Logf("tested %d non-subgroup points: all 3 methods agree (all false)", nNonSub)
 }
 
+func TestFilippoAgreement(t *testing.T) {
+	params := curveParameters()
+	for i := 0; i < 20; i++ {
+		k, _ := rand.Int(rand.Reader, &params.Order)
+		var p PointAffine
+		p.ScalarMultiplication(&params.Base, k)
+
+		pornin := p.isInSubGroupPornin()
+		porninF := p.isInSubGroupPorninFilippo()
+		quarticExpF := p.isInSubGroupQuarticExpFilippo()
+		quarticF := p.isInSubGroupQuarticFilippo()
+
+		if !pornin || !porninF || !quarticExpF || !quarticF {
+			t.Fatalf("subgroup: pornin=%v porninFilippo=%v quarticExpFilippo=%v quarticFilippo=%v", pornin, porninF, quarticExpF, quarticF)
+		}
+	}
+	t.Log("all filippo variants agree")
+}
 func TestQuarticSymbolFromSubgroup(t *testing.T) {
 	// quarticSymbol(1) = 1
 	var one fp.Element
@@ -188,86 +206,41 @@ func TestLowOrderPoints(t *testing.T) {
 
 // Benchmarks
 
-func BenchmarkIsInSubGroupNaive(b *testing.B) {
+func benchSubgroup(b *testing.B, method func(*PointAffine) bool) {
 	params := curveParameters()
 	k, _ := rand.Int(rand.Reader, &params.Order)
 	var p PointAffine
 	p.ScalarMultiplication(&params.Base, k)
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.isInSubGroupNaive()
+		method(&p)
 	}
+}
+
+func BenchmarkIsInSubGroupNaive(b *testing.B) {
+	benchSubgroup(b, (*PointAffine).isInSubGroupNaive)
 }
 
 func BenchmarkIsInSubGroupPornin(b *testing.B) {
-	params := curveParameters()
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		p.isInSubGroupPornin()
-	}
+	benchSubgroup(b, (*PointAffine).isInSubGroupPornin)
 }
 
 func BenchmarkIsInSubGroupQuarticExp(b *testing.B) {
-	params := curveParameters()
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		p.isInSubGroupQuarticExp()
-	}
+	benchSubgroup(b, (*PointAffine).isInSubGroupQuarticExp)
 }
 
 func BenchmarkIsInSubGroupQuartic(b *testing.B) {
-	params := curveParameters()
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		p.isInSubGroupQuartic()
-	}
+	benchSubgroup(b, (*PointAffine).isInSubGroupQuartic)
 }
 
 func BenchmarkIsInSubGroupPorninFilippo(b *testing.B) {
-	params := curveParameters()
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		p.isInSubGroupPorninFilippo()
-	}
+	benchSubgroup(b, (*PointAffine).isInSubGroupPorninFilippo)
 }
 
 func BenchmarkIsInSubGroupQuarticExpFilippo(b *testing.B) {
-	params := curveParameters()
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		p.isInSubGroupQuarticExpFilippo()
-	}
+	benchSubgroup(b, (*PointAffine).isInSubGroupQuarticExpFilippo)
 }
 
 func BenchmarkIsInSubGroupQuarticFilippo(b *testing.B) {
-	params := curveParameters()
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		p.isInSubGroupQuarticFilippo()
-	}
+	benchSubgroup(b, (*PointAffine).isInSubGroupQuarticFilippo)
 }

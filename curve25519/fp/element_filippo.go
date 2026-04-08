@@ -110,11 +110,10 @@ func (z *Element) QuarticSymbolExpFilippo() uint8 {
 
 	fe := z.ToFilippo()
 
-	// χ₄(z) = z * (z^((p-5)/8))^2
 	var p58, t, result field.Element
-	p58.Pow22523(&fe) // z^((p-5)/8)
-	t.Square(&p58)     // (z^((p-5)/8))^2
-	result.Multiply(&fe, &t) // z * (z^((p-5)/8))^2
+	p58.Pow22523(&fe)
+	t.Square(&p58)
+	result.Multiply(&fe, &t)
 
 	var one field.Element
 	one.One()
@@ -122,11 +121,7 @@ func (z *Element) QuarticSymbolExpFilippo() uint8 {
 		return 0
 	}
 
-	// sqrt(-1)
-	var sqrtMinusOne Element
-	sqrtMinusOne.SetString("19681161376707505956807079304988542015446066515923890162744021073123829784752")
-	sqrtM1 := sqrtMinusOne.ToFilippo()
-
+	sqrtM1 := sqrtMinusOneFp.ToFilippo()
 	if result.Equal(&sqrtM1) == 1 {
 		return 1
 	}
