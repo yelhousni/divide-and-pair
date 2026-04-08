@@ -358,6 +358,142 @@ func (p *PointAffine) isInSubGroupQuarticExp() bool {
 	return f.QuarticSymbolExp() == 0
 }
 
+// isInSubGroupPorninFilippo is isInSubGroupPornin but uses filippo's
+// 5×51-bit field for sqrt and Legendre (faster squaring).
+func (p *PointAffine) isInSubGroupPorninFilippo() bool {
+	subgroupInitOnce.Do(initSubgroupConstants)
+
+	if isLowOrder(&p.X, &p.Y) {
+		return p.IsZero()
+	}
+
+	u, w := edwardsToPorninMontgomery(p)
+
+	var e fp.Element
+	e.SetOne()
+
+	for range 2 {
+		var us, ws fp.Element
+		us.Double(&u)
+		us.Double(&us)
+		ws.Double(&w)
+
+		var wp fp.Element
+		if wp.SqrtFilippo(&us) == nil {
+			return false
+		}
+		var up, tmp, e2 fp.Element
+		e2.Square(&e)
+		tmp.Mul(&e2, &aPrimePorn)
+		up.Sub(&us, &tmp)
+		tmp.Mul(&wp, &ws)
+		up.Sub(&up, &tmp)
+		up.Halve()
+
+		var sqrtUp fp.Element
+		if sqrtUp.SqrtFilippo(&up) != nil {
+			w.Set(&sqrtUp)
+			tmp.Mul(&e2, &aPornin)
+			u.Square(&w)
+			u.Sub(&u, &tmp)
+			tmp.Mul(&w, &wp)
+			u.Sub(&u, &tmp)
+			u.Halve()
+		} else {
+			var twoUp fp.Element
+			twoUp.Double(&up)
+			var tt fp.Element
+			tt.SqrtFilippo(&twoUp)
+
+			wp.Mul(&wp, &tt)
+			w.Mul(&sqrt2Bp, &e2)
+			e.Mul(&e, &tt)
+
+			e2.Square(&e)
+			tmp.Mul(&e2, &aPornin)
+			u.Square(&w)
+			u.Sub(&u, &tmp)
+			tmp.Mul(&w, &wp)
+			u.Sub(&u, &tmp)
+			u.Halve()
+
+			w.Neg(&w)
+		}
+	}
+
+	return u.LegendreFilippo() == 1
+}
+
+// isInSubGroupQuarticExpFilippo is isInSubGroupQuarticExp but uses filippo's
+// field for sqrt and quartic symbol.
+func (p *PointAffine) isInSubGroupQuarticExpFilippo() bool {
+	subgroupInitOnce.Do(initSubgroupConstants)
+
+	if isLowOrder(&p.X, &p.Y) {
+		return p.IsZero()
+	}
+
+	u, w := edwardsToPorninMontgomery(p)
+
+	var e fp.Element
+	e.SetOne()
+
+	var us, ws fp.Element
+	us.Double(&u)
+	us.Double(&us)
+	ws.Double(&w)
+
+	var wp fp.Element
+	if wp.SqrtFilippo(&us) == nil {
+		return false
+	}
+	var up, tmp, e2 fp.Element
+	e2.Square(&e)
+	tmp.Mul(&e2, &aPrimePorn)
+	up.Sub(&us, &tmp)
+	tmp.Mul(&wp, &ws)
+	up.Sub(&up, &tmp)
+	up.Halve()
+
+	var sqrtUp fp.Element
+	if sqrtUp.SqrtFilippo(&up) != nil {
+		w.Set(&sqrtUp)
+		tmp.Mul(&e2, &aPornin)
+		u.Square(&w)
+		u.Sub(&u, &tmp)
+		tmp.Mul(&w, &wp)
+		u.Sub(&u, &tmp)
+		u.Halve()
+	} else {
+		var twoUp fp.Element
+		twoUp.Double(&up)
+		var tt fp.Element
+		tt.SqrtFilippo(&twoUp)
+
+		wp.Mul(&wp, &tt)
+		w.Mul(&sqrt2Bp, &e2)
+		e.Mul(&e, &tt)
+
+		e2.Square(&e)
+		tmp.Mul(&e2, &aPornin)
+		u.Square(&w)
+		u.Sub(&u, &tmp)
+		tmp.Mul(&w, &wp)
+		u.Sub(&u, &tmp)
+		u.Halve()
+
+		w.Neg(&w)
+	}
+
+	var wShift, f fp.Element
+	var twoIe fp.Element
+	twoIe.Mul(&twoI, &e)
+	wShift.Add(&w, &twoIe)
+	f.Square(&wShift)
+	f.Mul(&f, &u)
+	return f.QuarticSymbolExpFilippo() == 0
+}
+
 // IsInSubGroup tests subgroup membership using the fastest available method.
 func (p *PointAffine) IsInSubGroup() bool {
 	return p.isInSubGroupQuartic()
