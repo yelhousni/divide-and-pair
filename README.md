@@ -74,48 +74,6 @@ AWS r7a (AMD EPYC 9R14), Go 1.24, `go test -bench=. -benchtime=3s`:
 | Pornin (1 halving + Legendre) | 27 µs | 44× |
 | **Quartic (torus/PRAC)** | **16 µs** | **72×** |
 
-## Usage
-
-```go
-import "github.com/yelhousni/divide-and-pair/curve25519"
-
-g := curve25519.Generators()
-var p curve25519.PointAffine
-p.ScalarMultiplication(&g, k)
-
-p.IsInSubGroup()           // 1 halving + quartic symbol (GCD)
-```
-
-```go
-import "github.com/yelhousni/divide-and-pair/jubjub"
-
-g := jubjub.Generators()
-var p jubjub.PointAffine
-p.ScalarMultiplication(&g, k)
-
-p.IsInSubGroup()           // 0 halvings + octic symbol (exp)
-```
-
-```go
-import "github.com/yelhousni/divide-and-pair/fourq"
-
-g := fourq.Generators()
-var p fourq.PointAffine
-p.ScalarMultiplication(&g, k)
-
-p.IsInSubGroup()           // torus octic + Norm septic
-```
-
-```go
-import "github.com/yelhousni/divide-and-pair/curve448"
-
-g := curve448.Generators()
-var p curve448.PointAffine
-p.ScalarMultiplication(&g, k)
-
-p.IsInSubGroup()           // quartic symbol over Fp² (torus/PRAC)
-```
-
 ## References
 
 - Pornin, [*Point-Halving and Subgroup Membership in Twisted Edwards Curves*](https://eprint.iacr.org/2022/1164), 2022.
