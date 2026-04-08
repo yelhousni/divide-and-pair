@@ -55,7 +55,6 @@ func TestIsInSubGroupTate(t *testing.T) {
 	t.Logf("tested %d subgroup points + non-subgroup: Naive and Tate agree", nTests)
 }
 
-
 // Benchmarks
 
 func BenchmarkIsInSubGroupNaive(b *testing.B) {
@@ -93,4 +92,3 @@ func BenchmarkIsInSubGroupEndo(b *testing.B) {
 		p.isInSubGroupEndo()
 	}
 }
-

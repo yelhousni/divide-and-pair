@@ -100,28 +100,6 @@ func (z *E2) Square(x *E2) *E2 {
 	return z
 }
 
-// CyclotomicSquare sets z = x² assuming x is on the norm-1 torus (x·x̄ = 1).
-// For x = a+bi with a²+b² = 1: x² = (2a²-1) + ((a+b)²-1)i.
-// Cost: 2S instead of 2M.
-func (z *E2) CyclotomicSquare(x *E2) *E2 {
-	var a2, apb2 fp.Element
-	a2.Square(&x.A0)        // a²
-	apb2.Add(&x.A0, &x.A1)  // a+b
-	apb2.Square(&apb2)      // (a+b)²
-
-	z.A0.Double(&a2)        // 2a²
-	z.A0.Sub(&z.A0, &oneFp) // 2a² - 1
-
-	z.A1.Sub(&apb2, &oneFp) // (a+b)² - 1 = 2ab
-	return z
-}
-
-var oneFp fp.Element
-
-func init() {
-	oneFp.SetOne()
-}
-
 // MulByElement sets z = x * a (where a is in Fp) and returns z.
 func (z *E2) MulByElement(x *E2, a *fp.Element) *E2 {
 	z.A0.Mul(&x.A0, a)

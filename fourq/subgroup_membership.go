@@ -154,17 +154,17 @@ func septicCheck(XQ, YQ *fp2.E2) bool {
 
 	// Numerator: Norm(ℓD1)² · Norm(ℓA1)² · Norm(ℓD2) · Norm(gVert)
 	var num fp.Element
-	num.Square(&nEllD1)       // Norm(ℓD1)²
+	num.Square(&nEllD1) // Norm(ℓD1)²
 	var t fp.Element
-	t.Square(&nEllA1)         // Norm(ℓA1)²
+	t.Square(&nEllA1) // Norm(ℓA1)²
 	num.Mul(&num, &t)
 	num.Mul(&num, &nEllD2)
 	num.Mul(&num, &nGVert)
 
 	// Denominator: Norm(vD1)² · Norm(vA1)² · Norm(vD2)
 	var den fp.Element
-	den.Square(&nVD1)         // Norm(vD1)²
-	t.Square(&nVA1)           // Norm(vA1)²
+	den.Square(&nVD1) // Norm(vD1)²
+	t.Square(&nVA1)   // Norm(vA1)²
 	den.Mul(&den, &t)
 	den.Mul(&den, &nVD2)
 
@@ -270,8 +270,8 @@ func (p *PointAffine) isInSubGroupTate() bool {
 	b2.Square(&f8.A1)
 	var T, N fp.Element
 	T.Sub(&a2, &b2)
-	T.Double(&T)       // T = 2(a²-b²)
-	N.Add(&a2, &b2)    // N = Norm(f8)
+	T.Double(&T)    // T = 2(a²-b²)
+	N.Add(&a2, &b2) // N = Norm(f8)
 
 	// If f8 = 0 (degenerate Miller value), the point is not in the subgroup.
 	if N.IsZero() {
