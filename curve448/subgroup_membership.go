@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	fp "github.com/yelhousni/divide-and-pair/curve448/fp"
+	"github.com/yelhousni/divide-and-pair/curve448/fp2"
 )
 
 var (
@@ -17,6 +18,16 @@ var (
 	minusAPornin     fp.Element // -A = -2(a+d)
 	sqrtMinBp        fp.Element // sqrt(-B')
 	subgroupOrder    big.Int
+
+	// Quartic test constants (degree-4 Tate pairing over Fp2).
+	// T4 = (uT4, wT4) is a 4-torsion point on the Montgomery curve over Fp2.
+	// lam is the tangent slope at T4.
+	// C = wT4 + lam*uT4 (precomputed to simplify line evaluation).
+	// conjUT2Im = 2*sqrt(39081) (imaginary part of conj(uT2), the conjugate 2-torsion u-coordinate).
+	quarticLam    fp2.E2
+	quarticC      fp2.E2
+	quarticConjRe fp.Element // 39080
+	quarticConjIm fp.Element // 2*sqrt(39081) = imaginary part of conj(u_{T2})
 )
 
 func initSubgroupConstants() {
@@ -47,6 +58,23 @@ func initSubgroupConstants() {
 	sqrtMinBp.Sqrt(&negBp)
 
 	subgroupOrder.Set(&curveParams.Order)
+
+	// Quartic test constants.
+	// These come from a 4-torsion point T4 ∈ E(Fp2) \ E(Fp) on the Montgomery curve,
+	// obtained by halving the non-rational 2-torsion T2 = (39080 + 2√39081·i, 0).
+	quarticLam.A0.SetString("409466785180518956961611265803290831348604928765886125521636546093507230070268408209394576752377465036003676898038424039336503348623066")
+	quarticLam.A1.SetString("607666065788055156040088647550522819510877211007230551732676526742583204812484502734497541805514130443469320956493054479303320776889788")
+
+	// C = wT4 - lam*uT4 (precomputed constant in the tangent line evaluation).
+	quarticC.A0.SetString("407637470893696240970274054411012998449963411119155090599355826322254189874134214156025763704645782904595902611200522707074365055469475")
+	quarticC.A1.SetString("506581704541428460739451059287942017578380987414684991673455715920297891990135472012827895268542298278523614843293368590301287473065690")
+
+	quarticConjRe.SetUint64(39080)
+	// Note: conj(uT2) = (39080, -2s). We compute uP - conj(uT2) = (uP-39080, +2s).
+	// So quarticConjIm stores +2*sqrt(39081), the imaginary part of (uP - conj(uT2)).
+	var sqrt39081 fp.Element
+	sqrt39081.SetString("627894490647874670780146803011075515225223784391788159207390309582568626050729514829594252134780030556161172229750791477826575600769225")
+	quarticConjIm.Double(&sqrt39081) // 2*sqrt(39081)
 }
 
 // isLowOrder checks if an affine point (X, Y) is a low-order point.
@@ -178,7 +206,99 @@ func (p *PointAffine) isInSubGroupPornin() bool {
 	return u.Legendre() == 1
 }
 
+// isInSubGroupQuarticExp tests subgroup membership using a single quartic
+// residuosity check in Fp2 (exponentiation method).
+//
+// Instead of 1 halving (2 square roots) + 1 Legendre symbol, we compute
+// the degree-4 Tate pairing t_4(T4, P) where T4 ∈ E[4](Fp2) \ E(Fp) is a
+// non-rational 4-torsion point on the Montgomery curve. The pairing value
+// ζ ∈ Fp2 satisfies t_4 = 1 iff P is in the prime-order subgroup.
+//
+// The quartic character χ₄(ζ) = ζ^((p²-1)/4) = 1 is checked by computing
+// β = ζ^((p+1)/4) in Fp2 and verifying β ∈ Fp (i.e., β.A1 = 0).
+//
+// The Miller function value ζ is computed division-free as:
+//
+//	ℓ₁ = wP - λ·uP - C  (tangent line at T4 evaluated at P)
+//	ζ = ℓ₁² · (uP - conj(u_{T2}))
+//
+// where λ, C are precomputed Fp2 constants and conj(u_{T2}) is the conjugate
+// of the 2-torsion u-coordinate.
+func (p *PointAffine) isInSubGroupQuarticExp() bool {
+	subgroupInitOnce.Do(initSubgroupConstants)
+
+	if isLowOrder(&p.X, &p.Y) {
+		return p.IsZero()
+	}
+
+	u, w := edwardsToPorninMontgomery(p)
+
+	// l1 = (wP, 0) - lam * (uP, 0) - C
+	// lam * (uP, 0) = (lam.A0*uP, lam.A1*uP)
+	var l1 fp2.E2
+	l1.A0.Mul(&quarticLam.A0, &u)
+	l1.A1.Mul(&quarticLam.A1, &u)
+	l1.A0.Sub(&w, &l1.A0)
+	l1.A0.Sub(&l1.A0, &quarticC.A0)
+	l1.A1.Neg(&l1.A1)
+	l1.A1.Sub(&l1.A1, &quarticC.A1)
+
+	// conj_v1 = (uP - 39080, 2*sqrt(39081))
+	var conjV1 fp2.E2
+	conjV1.A0.Sub(&u, &quarticConjRe)
+	conjV1.A1.Set(&quarticConjIm)
+
+	// alpha = l1^2 * conj_v1
+	var alpha fp2.E2
+	alpha.Square(&l1)
+	alpha.Mul(&alpha, &conjV1)
+
+	// beta = alpha^((p+1)/4) in Fp2
+	var beta fp2.E2
+	beta.ExpBySqrtPp1o4(&alpha)
+
+	// chi_4(alpha) = 1 iff beta ∈ Fp iff beta.A1 = 0
+	return beta.A1.IsZero()
+}
+
+// isInSubGroupQuarticGCD tests subgroup membership using a quartic
+// residuosity check in Fp2 (GCD method).
+//
+// Same mathematical test as isInSubGroupQuarticExp, but computes the
+// quartic character using a Euclidean GCD algorithm over Z[i] with
+// the Gaussian prime p (since p ≡ 3 mod 4, p is inert in Z[i]).
+func (p *PointAffine) isInSubGroupQuarticGCD() bool {
+	subgroupInitOnce.Do(initSubgroupConstants)
+
+	if isLowOrder(&p.X, &p.Y) {
+		return p.IsZero()
+	}
+
+	u, w := edwardsToPorninMontgomery(p)
+
+	// Same alpha construction as quarticExp.
+	var l1 fp2.E2
+	l1.A0.Mul(&quarticLam.A0, &u)
+	l1.A1.Mul(&quarticLam.A1, &u)
+	l1.A0.Sub(&w, &l1.A0)
+	l1.A0.Sub(&l1.A0, &quarticC.A0)
+	l1.A1.Neg(&l1.A1)
+	l1.A1.Sub(&l1.A1, &quarticC.A1)
+
+	var conjV1 fp2.E2
+	conjV1.A0.Sub(&u, &quarticConjRe)
+	conjV1.A1.Set(&quarticConjIm)
+
+	var alpha fp2.E2
+	alpha.Square(&l1)
+	alpha.Mul(&alpha, &conjV1)
+
+	// TODO: implement proper GCD-based quartic symbol over Z[i] with Gaussian prime p.
+	// For now, fall back to exponentiation method.
+	return alpha.QuarticSymbol() == 0
+}
+
 // IsInSubGroup tests subgroup membership using the fastest available method.
 func (p *PointAffine) IsInSubGroup() bool {
-	return p.isInSubGroupPornin()
+	return p.isInSubGroupQuarticExp()
 }

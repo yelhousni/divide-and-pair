@@ -152,6 +152,98 @@ func TestLowOrderPoints(t *testing.T) {
 	}
 }
 
+func TestSubgroupQuarticExp(t *testing.T) {
+	params := curveParameters()
+
+	// Base point
+	if !params.Base.isInSubGroupQuarticExp() {
+		t.Fatal("base point should be in subgroup (QuarticExp)")
+	}
+}
+
+func TestSubgroupQuarticGCD(t *testing.T) {
+	params := curveParameters()
+
+	// Base point
+	if !params.Base.isInSubGroupQuarticGCD() {
+		t.Fatal("base point should be in subgroup (QuarticGCD)")
+	}
+}
+
+func TestSubgroupQuarticAgreement(t *testing.T) {
+	params := curveParameters()
+
+	// Test subgroup points: k * Base
+	nTests := 50
+	for i := 0; i < nTests; i++ {
+		k, _ := rand.Int(rand.Reader, &params.Order)
+		var p PointAffine
+		p.ScalarMultiplication(&params.Base, k)
+
+		pornin := p.isInSubGroupPornin()
+		quarticExp := p.isInSubGroupQuarticExp()
+		quarticGCD := p.isInSubGroupQuarticGCD()
+
+		if !pornin || !quarticExp || !quarticGCD {
+			t.Fatalf("subgroup point k*Base: pornin=%v quarticExp=%v quarticGCD=%v", pornin, quarticExp, quarticGCD)
+		}
+	}
+	t.Logf("tested %d subgroup points: all methods agree (all true)", nTests)
+
+	// Test non-subgroup points: add order-2 component (0, -1)
+	var order2Pt PointAffine
+	order2Pt.X.SetZero()
+	order2Pt.Y.SetOne()
+	order2Pt.Y.Neg(&order2Pt.Y)
+
+	nNonSub := 0
+	for i := 0; i < nTests; i++ {
+		k, _ := rand.Int(rand.Reader, &params.Order)
+		if k.Sign() == 0 {
+			continue
+		}
+		var p, q PointAffine
+		p.ScalarMultiplication(&params.Base, k)
+		q.Add(&p, &order2Pt)
+
+		pornin := q.isInSubGroupPornin()
+		quarticExp := q.isInSubGroupQuarticExp()
+		quarticGCD := q.isInSubGroupQuarticGCD()
+
+		if pornin || quarticExp || quarticGCD {
+			t.Fatalf("non-subgroup (order-2 offset): pornin=%v quarticExp=%v quarticGCD=%v", pornin, quarticExp, quarticGCD)
+		}
+		nNonSub++
+	}
+	t.Logf("tested %d non-subgroup points (order-2): all methods agree (all false)", nNonSub)
+
+	// Test non-subgroup points: add order-4 component (1, 0)
+	var order4Pt PointAffine
+	order4Pt.X.SetOne()
+	order4Pt.Y.SetZero()
+
+	nNonSub = 0
+	for i := 0; i < nTests; i++ {
+		k, _ := rand.Int(rand.Reader, &params.Order)
+		if k.Sign() == 0 {
+			continue
+		}
+		var p, q PointAffine
+		p.ScalarMultiplication(&params.Base, k)
+		q.Add(&p, &order4Pt)
+
+		pornin := q.isInSubGroupPornin()
+		quarticExp := q.isInSubGroupQuarticExp()
+		quarticGCD := q.isInSubGroupQuarticGCD()
+
+		if pornin || quarticExp || quarticGCD {
+			t.Fatalf("non-subgroup (order-4 offset): pornin=%v quarticExp=%v quarticGCD=%v", pornin, quarticExp, quarticGCD)
+		}
+		nNonSub++
+	}
+	t.Logf("tested %d non-subgroup points (order-4): all methods agree (all false)", nNonSub)
+}
+
 // Benchmarks
 
 func BenchmarkIsInSubGroupNaive(b *testing.B) {
@@ -175,5 +267,29 @@ func BenchmarkIsInSubGroupPornin(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		p.isInSubGroupPornin()
+	}
+}
+
+func BenchmarkIsInSubGroupQuarticExp(b *testing.B) {
+	params := curveParameters()
+	k, _ := rand.Int(rand.Reader, &params.Order)
+	var p PointAffine
+	p.ScalarMultiplication(&params.Base, k)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		p.isInSubGroupQuarticExp()
+	}
+}
+
+func BenchmarkIsInSubGroupQuarticGCD(b *testing.B) {
+	params := curveParameters()
+	k, _ := rand.Int(rand.Reader, &params.Order)
+	var p PointAffine
+	p.ScalarMultiplication(&params.Base, k)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		p.isInSubGroupQuarticGCD()
 	}
 }

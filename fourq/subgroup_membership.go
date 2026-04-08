@@ -260,16 +260,13 @@ func (p *PointAffine) isInSubGroupTate() bool {
 	f7.Mul(&f7, &tmp)
 	f7.Mul(&f7, &gVert)
 
-	// Frobenius trick for septic:
-	// f7^((p²-1)/7) = (f7^((p-1)/7))^(p+1) = Norm(f7^((p-1)/7))
-	// Since 7 | p-1, (p-1)/7 is integer. And z^(p+1) = Norm(z) for z ∈ Fp².
-	// Uses a 131-step addition chain for (p-1)/7.
-	var f7exp fp2.E2
-	f7exp.ExpBySeptic(&f7) // f7^((p-1)/7)
-	var norm fp2.E2
-	norm.Conjugate(&f7exp)
-	norm.Mul(&norm, &f7exp) // Norm = conj * z = |z|^2
-	return norm.IsOne()
+	// Septic check: χ₇(f7) = f7^((p²-1)/7) ?= 1
+	// Since Norm(f7)^((p-1)/7) = f7^((p+1)(p-1)/7) = f7^((p²-1)/7),
+	// we compute the Norm first (cheap, in Fp) then exponentiate in Fp.
+	normF7 := f7.Norm()
+	var septicResult fp2.Element
+	septicResult.ExpBySepticFp(normF7)
+	return septicResult.IsOne()
 }
 
 // IsInSubGroup tests subgroup membership using the fastest available method.
