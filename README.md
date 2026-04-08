@@ -29,59 +29,49 @@ Companion code for the article *"Divide-and-Pair: Faster subgroup membership tes
 - **QuarticExp** (Curve25519): same as Quartic but uses addition-chain exponentiation for the quartic symbol.
 - **OcticExp** (JubJub): 0 halvings + 1 octic residuosity check. Since d = gcd(8, p−1) = 8 for the BLS12-381 scalar field (p ≡ 1 mod 8), no halvings are needed. The degree-8 Miller function is evaluated on the Weierstrass model via a 3-step doubling chain, and the octic symbol χ₈(f) = f^((p−1)/8) is checked division-free.
 - **Tate** (FourQ): 0 divisions + octic check + septic check.
-  - **Octic**: degree-8 Miller function on the Weierstrass model. Three approaches implemented:
-    - *Exp1* (β approach): β = f₈^((p+1)/8), check β.A1 == 0. Avoids Fp²-inversion by turning the Frobenius into a free zero-check.
-    - *Exp2* (g approach): g = conj(f₈)/f₈ on the norm-1 torus, then cyclotomic squarings (2S vs 2M per step).
-    - *Exp3* (torus/trace): compress g to its trace t ∈ Fp, then 124 iterations of t → t²−2 (1S per step, projective).
-  - **Septic**: degree-7 Miller function with precomputed intermediates. Optimized via Norm reduction: χ₇(f₇) = Norm(f₇)^((p−1)/7), computed as a single Fp exponentiation (vs Fp² in the original). Three Fp²-inversions batched into one via Montgomery's trick.
-- **Quartic over Fp²** (Curve448): since p ≡ 3 mod 4, the quartic character does not exist over Fp, but does over Fp² (embedding degree k = 2 for the 4-torsion). A non-rational 4-torsion point T₄ ∈ E(Fp²)\E(Fp) is used to evaluate a degree-4 Tate pairing, reducing subgroup membership to a single quartic residuosity check in Fp². Four approaches implemented:
-  - *Exp1* (β approach): β = α^((p+1)/4) in Fp², check β.A1 == 0.
-  - *Exp2* (g approach): g = conj(α)/α, cyclotomic Fp² exponentiation.
-  - *Exp3* (torus/Lucas): Montgomery ladder on the trace t ∈ Fp with t → t²−2 squarings.
-  - *Exp4* (torus/PRAC): PRAC differential addition chain (Montgomery 1992) for the Lucas V-sequence. Uses 632 field ops vs 890 for the binary ladder (29% saving).
+  - **Octic**: degree-8 Miller function on the Weierstrass model, then torus/trace compression: g = conj(f₈)/f₈ is projected to its trace t ∈ Fp (projectively, no Fp²-inversion), followed by 124 iterations of t → t²−2 (1 Fp-squaring per step). Check trace == 2.
+  - **Septic**: degree-7 Miller function with precomputed intermediates. Norm-accumulated: Norm(f₇) = ∏ Norm(ℓᵢ) / ∏ Norm(vⱼ) computed entirely in Fp from individual line norms — no Fp² inversions needed. Then χ₇(f₇) = Norm(f₇)^((p−1)/7) via a single Fp exponentiation.
+- **Quartic over Fp²** (Curve448): since p ≡ 3 mod 4, the quartic character does not exist over Fp, but does over Fp² (embedding degree k = 2 for the 4-torsion). A non-rational 4-torsion point T₄ ∈ E(Fp²)\E(Fp) is used to evaluate a degree-4 Tate pairing, reducing subgroup membership to a single quartic residuosity check in Fp². The torus approach is used: g = conj(α)/α is projected to its trace t ∈ Fp, then a PRAC differential addition chain (Montgomery 1992) evaluates the Lucas V-sequence V_e(t) for e = (p+1)/4. PRAC uses 632 field ops vs 890 for a binary Montgomery ladder (29% saving).
 - **Endomorphism** (FourQ): subgroup membership from the FourQ ψ and φ endomorphisms, reducing the order check to a 4-dimensional multi-scalar relation with short scalars.
 
 ## Benchmarks
 
-Apple M5, Go 1.25, `go test -bench=.`:
+AWS r7a (AMD EPYC 9R14), Go 1.24, `go test -bench=. -benchtime=3s`:
 
 ### Curve25519
 | Method | Time | Speedup vs Naive |
 |--------|------|-----------------|
-| Naive | 893 µs | 1× |
-| Pornin | 17 µs | 53× |
-| QuarticExp | 16 µs | 55× |
-| **Quartic (GCD)** | **15 µs** | **61×** |
+| Naive | 1,568 µs | 1× |
+| Pornin | 36 µs | 44× |
+| QuarticExp | 22 µs | 72× |
+| **Quartic (GCD)** | **25 µs** | **62×** |
 
 ### JubJub
 | Method | Time | Speedup vs Naive |
 |--------|------|-----------------|
-| Naive | 968 µs | 1× |
-| Pornin | 27 µs | 35× |
-| **OcticExp** | **5.2 µs** | **186×** |
+| Naive | 1,820 µs | 1× |
+| Pornin | 45 µs | 40× |
+| **OcticExp** | **9.7 µs** | **188×** |
 
 ### FourQ
 | Method | Time | Speedup vs Naive |
 |--------|------|-----------------|
-| Naive | 461 µs | 1× |
-| Endomorphism | 133 µs | 3.5× |
-| Tate (g + generic sq) | 3.2 µs | 143× |
-| **Tate Exp1 (β approach)** | **2.9 µs** | **159×** |
+| Naive | 908 µs | 1× |
+| Endomorphism | 243 µs | 3.7× |
+| **Tate (torus octic + Norm septic)** | **4.8 µs** | **190×** |
 
 ### Curve448
 | Method | Time | Speedup vs Naive |
 |--------|------|-----------------|
-| Naive | 3,445 µs | 1× |
-| Pornin (1 halving + Legendre) | 52 µs | 66× |
-| Quartic Exp1 (β, Fp² add chain) | 40 µs | 86× |
-| Quartic Exp3 (torus, binary ladder) | 38 µs | 91× |
-| **Quartic Exp4 (torus, PRAC)** | **30 µs** | **115×** |
+| Naive | 5,368 µs | 1× |
+| Pornin (1 halving + Legendre) | 111 µs | 48× |
+| **Quartic (torus/PRAC)** | **48 µs** | **112×** |
 
 ### GC256A
 | Method | Time | Speedup vs Naive |
 |--------|------|-----------------|
-| Naive | 780 µs | 1× |
-| **Pornin** | **18 µs** | **44×** |
+| Naive | 1,170 µs | 1× |
+| **Pornin** | **21 µs** | **57×** |
 
 ## Usage
 
@@ -112,7 +102,7 @@ g := fourq.Generators()
 var p fourq.PointAffine
 p.ScalarMultiplication(&g, k)
 
-p.IsInSubGroup()           // octic (β approach) + septic (Norm + Fp exp)
+p.IsInSubGroup()           // torus octic + Norm septic
 ```
 
 ```go
@@ -122,7 +112,7 @@ g := curve448.Generators()
 var p curve448.PointAffine
 p.ScalarMultiplication(&g, k)
 
-p.IsInSubGroup()           // quartic symbol over Fp² (PRAC torus)
+p.IsInSubGroup()           // quartic symbol over Fp² (torus/PRAC)
 ```
 
 ## References
