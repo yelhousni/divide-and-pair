@@ -36,42 +36,43 @@ Companion code for the article *"Divide-and-Pair: Faster subgroup membership tes
 
 ## Benchmarks
 
-AWS r7a (AMD EPYC 9R14), Go 1.24, `go test -bench=. -benchtime=3s`:
+AWS r7a (AMD EPYC 9R14), Go 1.24, `go test -bench=. -benchtime=3s`.
+Curve25519 and JubJub use amd64 assembly for field arithmetic.
 
 ### Curve25519
 | Method | Time | Speedup vs Naive |
 |--------|------|-----------------|
-| Naive | 1,568 µs | 1× |
-| Pornin | 36 µs | 44× |
-| QuarticExp | 22 µs | 72× |
-| **Quartic (GCD)** | **25 µs** | **62×** |
+| Naive | 1,563 µs | 1× |
+| Pornin | 27 µs | 58× |
+| QuarticExp | 16 µs | 98× |
+| **Quartic (GCD)** | **15 µs** | **104×** |
 
 ### JubJub
 | Method | Time | Speedup vs Naive |
 |--------|------|-----------------|
-| Naive | 1,820 µs | 1× |
-| Pornin | 45 µs | 40× |
-| **OcticExp** | **9.7 µs** | **188×** |
+| Naive | 1,762 µs | 1× |
+| Pornin | 41 µs | 43× |
+| **OcticExp** | **8.7 µs** | **203×** |
 
 ### FourQ
 | Method | Time | Speedup vs Naive |
 |--------|------|-----------------|
 | Naive | 908 µs | 1× |
-| Endomorphism | 243 µs | 3.7× |
-| **Tate (torus octic + Norm septic)** | **4.8 µs** | **190×** |
+| Endomorphism | 242 µs | 3.8× |
+| **Tate (torus octic + Norm septic)** | **4.7 µs** | **193×** |
 
 ### Curve448
 | Method | Time | Speedup vs Naive |
 |--------|------|-----------------|
-| Naive | 5,368 µs | 1× |
+| Naive | 5,364 µs | 1× |
 | Pornin (1 halving + Legendre) | 111 µs | 48× |
 | **Quartic (torus/PRAC)** | **48 µs** | **112×** |
 
 ### GC256A
 | Method | Time | Speedup vs Naive |
 |--------|------|-----------------|
-| Naive | 1,177 µs | 1× |
-| Pornin (1 halving + Legendre) | 27 µs | 44× |
+| Naive | 1,176 µs | 1× |
+| Pornin (1 halving + Legendre) | 25 µs | 47× |
 | **Quartic (torus/PRAC)** | **16 µs** | **72×** |
 
 ## References
