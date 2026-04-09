@@ -34,46 +34,6 @@ Companion code for the article *"Divide-and-Pair: Faster subgroup membership tes
 - **Quartic over Fp²** (Curve448, GC256A): since p ≡ 3 mod 4, the quartic character does not exist over Fp, but does over Fp² (embedding degree k = 2 for the 4-torsion). A non-rational 4-torsion point T₄ ∈ E(Fp²)\E(Fp) is used to evaluate a degree-4 Tate pairing, reducing subgroup membership to a single quartic residuosity check in Fp². The torus approach is used: g = conj(α)/α is projected to its trace t ∈ Fp, then a PRAC differential addition chain (Montgomery 1992) evaluates the Lucas V-sequence V_e(t) for e = (p+1)/4.
 - **Endomorphism** (FourQ): subgroup membership from the FourQ ψ and φ endomorphisms, reducing the order check to a 4-dimensional multi-scalar relation with short scalars.
 
-## Benchmarks
-
-AWS r7a (AMD EPYC 9R14), Go 1.24, `go test -bench=. -benchtime=3s`.
-Curve25519 and JubJub use amd64 assembly for field arithmetic.
-
-### Curve25519
-| Method | Time | Speedup vs Naive |
-|--------|------|-----------------|
-| Naive | 1,563 µs | 1× |
-| Pornin | 27 µs | 58× |
-| QuarticExp | 16 µs | 98× |
-| **Quartic (GCD)** | **15 µs** | **104×** |
-
-### JubJub
-| Method | Time | Speedup vs Naive |
-|--------|------|-----------------|
-| Naive | 1,762 µs | 1× |
-| Pornin | 41 µs | 43× |
-| **OcticExp** | **8.7 µs** | **203×** |
-
-### FourQ
-| Method | Time | Speedup vs Naive |
-|--------|------|-----------------|
-| Naive | 908 µs | 1× |
-| Endomorphism | 242 µs | 3.8× |
-| **Tate (torus octic + Norm septic)** | **4.7 µs** | **193×** |
-
-### Curve448
-| Method | Time | Speedup vs Naive |
-|--------|------|-----------------|
-| Naive | 5,364 µs | 1× |
-| Pornin (1 halving + Legendre) | 111 µs | 48× |
-| **Quartic (torus/PRAC)** | **48 µs** | **112×** |
-
-### GC256A
-| Method | Time | Speedup vs Naive |
-|--------|------|-----------------|
-| Naive | 1,176 µs | 1× |
-| Pornin (1 halving + Legendre) | 25 µs | 47× |
-| **Quartic (torus/PRAC)** | **16 µs** | **72×** |
 
 ## References
 
