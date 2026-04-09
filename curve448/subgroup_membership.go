@@ -177,8 +177,10 @@ func halvePornin(u, w, e *fp.Element) bool {
 // isInSubGroupNaive tests subgroup membership by scalar multiplication by ℓ.
 func (p *PointAffine) isInSubGroupNaive() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
-	var res PointAffine
-	res.ScalarMultiplication(p, &subgroupOrder)
+	var proj PointProj
+	proj.FromAffine(p)
+	var res PointProj
+	res.ScalarMultiplication(&proj, &subgroupOrder)
 	return res.IsZero()
 }
 

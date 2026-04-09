@@ -91,34 +91,26 @@ func init() {
 }
 
 // multiScalarMulIsZero checks if [s1]P1 + [s2]P2 + [s3]P3 + [s4]P4 == O
-// using Shamir's trick (joint double-and-add). This processes all 4 scalars
-// in a single pass of max(bitlen(si)) doublings, precomputing all 2^4-1=15
-// possible sums of the base points.
+// using Shamir's trick (joint double-and-add) in projective coordinates.
+// This processes all 4 scalars in a single pass of max(bitlen(si)) doublings,
+// precomputing all 2^4-1=15 possible sums of the base points.
 func multiScalarMulIsZero(P1, P2, P3, P4 *PointAffine, s1, s2, s3, s4 *big.Int) bool {
-	// Make all scalars positive, negating points as needed
-	type entry struct {
-		pt *PointAffine
-		s  *big.Int
-	}
-	entries := [4]entry{
-		{P1, new(big.Int).Set(s1)},
-		{P2, new(big.Int).Set(s2)},
-		{P3, new(big.Int).Set(s3)},
-		{P4, new(big.Int).Set(s4)},
-	}
-	var pts [4]PointAffine
+	// Convert to projective and make all scalars positive
+	var pts [4]PointProj
 	var scalars [4]big.Int
-	for i := range entries {
-		pts[i].Set(entries[i].pt)
-		scalars[i].Set(entries[i].s)
+	inputs := [4]*PointAffine{P1, P2, P3, P4}
+	inputScalars := [4]*big.Int{s1, s2, s3, s4}
+	for i := range inputs {
+		pts[i].FromAffine(inputs[i])
+		scalars[i].Set(inputScalars[i])
 		if scalars[i].Sign() < 0 {
 			pts[i].Neg(&pts[i])
 			scalars[i].Neg(&scalars[i])
 		}
 	}
 
-	// Precompute all 15 non-trivial sums: table[mask-1] = sum of pts[i] where bit i is set
-	var table [15]PointAffine
+	// Precompute all 15 non-trivial sums in projective
+	var table [15]PointProj
 	table[0].Set(&pts[0])             // 0001
 	table[1].Set(&pts[1])             // 0010
 	table[2].Add(&pts[0], &pts[1])    // 0011
@@ -143,9 +135,9 @@ func multiScalarMulIsZero(P1, P2, P3, P4 *PointAffine, s1, s2, s3, s4 *big.Int) 
 		}
 	}
 
-	// Joint double-and-add (MSB to LSB)
-	var result PointAffine
-	result.SetInfinity()
+	// Joint double-and-add (MSB to LSB) in projective
+	var result PointProj
+	result.setInfinity()
 
 	for i := maxBits - 1; i >= 0; i-- {
 		result.Double(&result)

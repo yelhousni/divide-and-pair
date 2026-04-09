@@ -32,13 +32,13 @@ var (
 
 	// Second independent 7-torsion point S7' and its Miller loop intermediates.
 	// E[7](Fp2) ≅ Z7 × Z7, so we need two independent points to check both factors.
-	XS7p, YS7p   fp2.E2
-	lamDbl1p      fp2.E2 // tangent slope at S7'
-	X2Sp, Y2Sp   fp2.E2 // [2]S7'
-	lamAdd1p      fp2.E2 // chord slope S7', [2]S7'
-	X3Sp, Y3Sp   fp2.E2 // [3]S7'
-	lamDbl2p      fp2.E2 // tangent slope at [3]S7'
-	X6Sp          fp2.E2 // [6]S7' = -S7' (X only)
+	XS7p, YS7p fp2.E2
+	lamDbl1p   fp2.E2 // tangent slope at S7'
+	X2Sp, Y2Sp fp2.E2 // [2]S7'
+	lamAdd1p   fp2.E2 // chord slope S7', [2]S7'
+	X3Sp, Y3Sp fp2.E2 // [3]S7'
+	lamDbl2p   fp2.E2 // tangent slope at [3]S7'
+	X6Sp       fp2.E2 // [6]S7' = -S7' (X only)
 
 	three fp2.E2
 )
@@ -250,8 +250,10 @@ func edwardsToWeierstrass(p *PointAffine) (X, Y fp2.E2) {
 // isInSubGroupNaive tests subgroup membership by scalar multiplication by N.
 func (p *PointAffine) isInSubGroupNaive() bool {
 	initOnce.Do(initCurveParams)
-	var res PointAffine
-	res.ScalarMultiplication(p, &curveParams.Order)
+	var proj PointProj
+	proj.FromAffine(p)
+	var res PointProj
+	res.ScalarMultiplication(&proj, &curveParams.Order)
 	return res.IsZero()
 }
 
