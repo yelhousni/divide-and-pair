@@ -146,7 +146,7 @@ var (
 	biNormB   big.Int // = q
 	biOne     = big.NewInt(1)
 
-	// sqrtMinusOneFp is sqrt(-1) mod q, used by QuarticSymbolExp and QuarticSymbolExpFilippo.
+	// sqrtMinusOneFp is sqrt(-1) mod q, used by QuarticSymbolExp.
 	sqrtMinusOneFp Element
 	minusOneFp     Element
 )
@@ -307,12 +307,6 @@ func quarticSymbolWeilert(z *Element, fallback func(*Element) uint8) uint8 {
 // Returns 0 (χ₄=1), 1 (χ₄=i), 2 (χ₄=-1), or 3 (χ₄=-i).
 func (z *Element) QuarticSymbol() uint8 {
 	return quarticSymbolWeilert(z, (*Element).QuarticSymbolExp)
-}
-
-// QuarticSymbolFilippo is QuarticSymbol (Weilert GCD) but falls back to
-// QuarticSymbolExpFilippo instead of QuarticSymbolExp.
-func (z *Element) QuarticSymbolFilippo() uint8 {
-	return quarticSymbolWeilert(z, (*Element).QuarticSymbolExpFilippo)
 }
 
 func unitPow128(re, im signed128) int64 {

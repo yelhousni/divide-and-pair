@@ -95,12 +95,6 @@ func edwardsToPorninMontgomery(p *PointAffine) (u, w fp.Element) {
 	return
 }
 
-// sqrtFn computes dst = sqrt(src), returning nil if src is not a QR.
-type sqrtFn func(dst, src *fp.Element) *fp.Element
-
-func sqrtNative(dst, src *fp.Element) *fp.Element  { return dst.Sqrt(src) }
-func sqrtFilippo(dst, src *fp.Element) *fp.Element { return dst.SqrtFilippo(src) }
-
 // halvePornin performs one division-free halving on Pornin's Montgomery
 // coordinates (u, w) with scaling factor e. Returns false if not halvable.
 //
@@ -108,7 +102,7 @@ func sqrtFilippo(dst, src *fp.Element) *fp.Element { return dst.SqrtFilippo(src)
 // a scaling factor e such that we work on the isomorphic curve
 // Curve(A*e², B*e⁴). When up is not a QR in inverse psi1, we switch
 // to an isomorphic curve instead of computing B'/up.
-func halvePornin(u, w, e *fp.Element, sqrt sqrtFn) bool {
+func halvePornin(u, w, e *fp.Element) bool {
 	// Inverse iso: (u, w) -> (4u, 2w)
 	var us, ws fp.Element
 	us.Double(u)
@@ -117,7 +111,7 @@ func halvePornin(u, w, e *fp.Element, sqrt sqrtFn) bool {
 
 	// Inverse psi2: wp = sqrt(us)
 	var wp fp.Element
-	if sqrt(&wp, &us) == nil {
+	if wp.Sqrt(&us) == nil {
 		return false
 	}
 
@@ -132,7 +126,7 @@ func halvePornin(u, w, e *fp.Element, sqrt sqrtFn) bool {
 
 	// Inverse psi1.
 	var sqrtUp fp.Element
-	if sqrt(&sqrtUp, &up) != nil {
+	if sqrtUp.Sqrt(&up) != nil {
 		// QR case
 		w.Set(&sqrtUp)
 		tmp.Mul(&e2, &aPornin)
@@ -145,7 +139,7 @@ func halvePornin(u, w, e *fp.Element, sqrt sqrtFn) bool {
 		// NQR case: compute tt = sqrt(2*up)
 		var twoUp, tt fp.Element
 		twoUp.Double(&up)
-		sqrt(&tt, &twoUp)
+		tt.Sqrt(&twoUp)
 
 		wp.Mul(&wp, &tt)
 		w.Mul(&sqrt2Bp, &e2)
@@ -164,44 +158,14 @@ func halvePornin(u, w, e *fp.Element, sqrt sqrtFn) bool {
 	return true
 }
 
-// quarticCriterion computes the quartic test: χ₄(uR * (wR + 2i)²) using the given symbol function.
-func quarticCriterion(uR, wR *fp.Element, symbolFn func(*fp.Element) uint8) bool {
-	var wShift, f fp.Element
-	wShift.Add(wR, &twoI)
-	f.Square(&wShift)
-	f.Mul(&f, uR)
-	return symbolFn(&f) == 0
-}
-
-// quarticCriterionScaled computes χ₄(u * (w + 2i·e)²) using the given symbol function.
-func quarticCriterionScaled(u, w, e *fp.Element, symbolFn func(*fp.Element) uint8) bool {
+// quarticInputScaled computes u * (w + 2i*e)^2 for the final quartic check.
+func quarticInputScaled(u, w, e *fp.Element) fp.Element {
 	var twoIe, wShift, f fp.Element
 	twoIe.Mul(&twoI, e)
 	wShift.Add(w, &twoIe)
 	f.Square(&wShift)
 	f.Mul(&f, u)
-	return symbolFn(&f) == 0
-}
-
-// isInSubGroupGeneric is the shared driver for all halving-based subgroup tests.
-func isInSubGroupGeneric(p *PointAffine, halvings int, sqrt sqrtFn, finalCheck func(u, w, e *fp.Element) bool) bool {
-	subgroupInitOnce.Do(initSubgroupConstants)
-
-	if isLowOrder(&p.X, &p.Y) {
-		return p.IsZero()
-	}
-
-	u, w := edwardsToPorninMontgomery(p)
-	var e fp.Element
-	e.SetOne()
-
-	for range halvings {
-		if !halvePornin(&u, &w, &e, sqrt) {
-			return false
-		}
-	}
-
-	return finalCheck(&u, &w, &e)
+	return f
 }
 
 // isInSubGroupNaive tests subgroup membership by scalar multiplication by ℓ.
@@ -217,49 +181,68 @@ func (p *PointAffine) isInSubGroupNaive() bool {
 // isInSubGroupPornin tests subgroup membership using Pornin's method:
 // 2 halvings + 1 Legendre symbol (3rd halving check).
 func (p *PointAffine) isInSubGroupPornin() bool {
-	return isInSubGroupGeneric(p, 2, sqrtNative, func(u, w, e *fp.Element) bool {
-		return u.Legendre() == 1
-	})
+	subgroupInitOnce.Do(initSubgroupConstants)
+
+	if isLowOrder(&p.X, &p.Y) {
+		return p.IsZero()
+	}
+
+	u, w := edwardsToPorninMontgomery(p)
+
+	var e fp.Element
+	e.SetOne()
+
+	for range 2 {
+		if !halvePornin(&u, &w, &e) {
+			return false
+		}
+	}
+
+	return u.Legendre() == 1
 }
 
 // isInSubGroupQuartic tests subgroup membership using our improved method:
 // 1 halving + 1 quartic symbol (Weilert GCD).
 func (p *PointAffine) isInSubGroupQuartic() bool {
-	return isInSubGroupGeneric(p, 1, sqrtNative, func(u, w, e *fp.Element) bool {
-		return quarticCriterionScaled(u, w, e, (*fp.Element).QuarticSymbol)
-	})
+	subgroupInitOnce.Do(initSubgroupConstants)
+
+	if isLowOrder(&p.X, &p.Y) {
+		return p.IsZero()
+	}
+
+	u, w := edwardsToPorninMontgomery(p)
+
+	var e fp.Element
+	e.SetOne()
+
+	if !halvePornin(&u, &w, &e) {
+		return false
+	}
+
+	f := quarticInputScaled(&u, &w, &e)
+	return f.QuarticSymbol() == 0
 }
 
 // isInSubGroupQuarticExp tests subgroup membership using:
 // 1 halving + 1 quartic symbol (addition chain exponentiation).
 func (p *PointAffine) isInSubGroupQuarticExp() bool {
-	return isInSubGroupGeneric(p, 1, sqrtNative, func(u, w, e *fp.Element) bool {
-		return quarticCriterionScaled(u, w, e, (*fp.Element).QuarticSymbolExp)
-	})
-}
+	subgroupInitOnce.Do(initSubgroupConstants)
 
-// isInSubGroupPorninFilippo is isInSubGroupPornin but uses filippo's
-// 5×51-bit field for sqrt and Legendre (faster squaring).
-func (p *PointAffine) isInSubGroupPorninFilippo() bool {
-	return isInSubGroupGeneric(p, 2, sqrtFilippo, func(u, w, e *fp.Element) bool {
-		return u.LegendreFilippo() == 1
-	})
-}
+	if isLowOrder(&p.X, &p.Y) {
+		return p.IsZero()
+	}
 
-// isInSubGroupQuarticExpFilippo is isInSubGroupQuarticExp but uses filippo's
-// field for sqrt and quartic symbol.
-func (p *PointAffine) isInSubGroupQuarticExpFilippo() bool {
-	return isInSubGroupGeneric(p, 1, sqrtFilippo, func(u, w, e *fp.Element) bool {
-		return quarticCriterionScaled(u, w, e, (*fp.Element).QuarticSymbolExpFilippo)
-	})
-}
+	u, w := edwardsToPorninMontgomery(p)
 
-// isInSubGroupQuarticFilippo is isInSubGroupQuartic but uses filippo's
-// field for sqrt and quartic symbol (Weilert GCD with filippo fallback).
-func (p *PointAffine) isInSubGroupQuarticFilippo() bool {
-	return isInSubGroupGeneric(p, 1, sqrtFilippo, func(u, w, e *fp.Element) bool {
-		return quarticCriterionScaled(u, w, e, (*fp.Element).QuarticSymbolFilippo)
-	})
+	var e fp.Element
+	e.SetOne()
+
+	if !halvePornin(&u, &w, &e) {
+		return false
+	}
+
+	f := quarticInputScaled(&u, &w, &e)
+	return f.QuarticSymbolExp() == 0
 }
 
 // IsInSubGroup tests subgroup membership using the fastest available method.

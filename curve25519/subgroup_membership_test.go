@@ -123,33 +123,6 @@ func TestSubgroupAgreement(t *testing.T) {
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
-func TestFilippoAgreement(t *testing.T) {
-	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 20
-
-	properties := gopter.NewProperties(parameters)
-	genS := GenBigInt()
-
-	properties.Property("filippo variants agree with standard", prop.ForAll(
-		func(s big.Int) bool {
-			params := curveParameters()
-			var p PointAffine
-			p.ScalarMultiplication(&params.Base, &s)
-
-			pornin := p.isInSubGroupPornin()
-			porninF := p.isInSubGroupPorninFilippo()
-			quarticExpF := p.isInSubGroupQuarticExpFilippo()
-			quarticF := p.isInSubGroupQuarticFilippo()
-
-			return pornin == porninF && pornin == quarticExpF && pornin == quarticF
-		},
-		genS,
-	))
-
-	properties.TestingRun(t, gopter.ConsoleReporter(false))
-}
-
 func TestQuarticSymbolFromSubgroup(t *testing.T) {
 	var one fp.Element
 	one.SetOne()
@@ -237,16 +210,4 @@ func BenchmarkIsInSubGroupQuarticExp(b *testing.B) {
 
 func BenchmarkIsInSubGroupQuartic(b *testing.B) {
 	benchSubgroup(b, (*PointAffine).isInSubGroupQuartic)
-}
-
-func BenchmarkIsInSubGroupPorninFilippo(b *testing.B) {
-	benchSubgroup(b, (*PointAffine).isInSubGroupPorninFilippo)
-}
-
-func BenchmarkIsInSubGroupQuarticExpFilippo(b *testing.B) {
-	benchSubgroup(b, (*PointAffine).isInSubGroupQuarticExpFilippo)
-}
-
-func BenchmarkIsInSubGroupQuarticFilippo(b *testing.B) {
-	benchSubgroup(b, (*PointAffine).isInSubGroupQuarticFilippo)
 }
