@@ -91,11 +91,25 @@ func isLowOrder(X, Y *fp.Element) bool {
 	return X.IsZero() || Y.IsZero()
 }
 
-// edwardsToPorninMontgomery converts an affine Edwards point (x, y) to
-// Pornin's Montgomery (u, w) coordinates, batching the two inversions
-// into one using Montgomery's trick.
+// edwardsToPorninMontgomeryScaled maps an affine Edwards point to scaled
+// Montgomery coordinates without the initial inversion.
+func edwardsToPorninMontgomeryScaled(p *PointAffine) (u, w, e fp.Element) {
+	var oneMinusY, onePlusY fp.Element
+	var one fp.Element
+	one.SetOne()
+	oneMinusY.Sub(&one, &p.Y)
+	onePlusY.Add(&one, &p.Y)
+	e.Mul(&p.X, &oneMinusY)
+	u.Mul(&aMinusD, &onePlusY)
+	u.Mul(&u, &p.X)
+	u.Mul(&u, &e)
+	w.Double(&oneMinusY)
+	return
+}
+
+// edwardsToPorninMontgomery keeps the affine Montgomery coordinates used by
+// the quartic torus path.
 func edwardsToPorninMontgomery(p *PointAffine) (u, w fp.Element) {
-	// u = (a-d)(1+y)/(1-y), w = 2/x
 	var oneMinusY, prod, inv fp.Element
 	var one fp.Element
 	one.SetOne()
@@ -111,10 +125,18 @@ func edwardsToPorninMontgomery(p *PointAffine) (u, w fp.Element) {
 	onePlusY.Add(&one, &p.Y)
 	u.Mul(&aMinusD, &onePlusY)
 	u.Mul(&u, &invOneMinusY)
-
 	w.Double(&invX)
-
 	return
+}
+
+func sqrtExtCurve448(z, x *fp.Element) bool {
+	if z.Sqrt(x) != nil {
+		return true
+	}
+	var negX fp.Element
+	negX.Neg(x)
+	z.Sqrt(&negX)
+	return false
 }
 
 // halvePornin performs one division-free halving on Pornin's Montgomery
@@ -144,14 +166,9 @@ func halvePornin(u, w, e *fp.Element) bool {
 
 	// Inverse psi1.
 	var sqrtResult fp.Element
-	if sqrtResult.Sqrt(&up) != nil {
-		// up is QR
+	if sqrtExtCurve448(&sqrtResult, &up) {
 		w.Set(&sqrtResult)
 	} else {
-		// up is NQR: sqrt(-up) exists (p ≡ 3 mod 4)
-		var negUp fp.Element
-		negUp.Neg(&up)
-		sqrtResult.Sqrt(&negUp)
 		wp.Mul(&wp, &up)
 		wp.Neg(&wp)
 		var e2 fp.Element
@@ -194,10 +211,7 @@ func (p *PointAffine) isInSubGroupPornin() bool {
 		return p.IsZero()
 	}
 
-	u, w := edwardsToPorninMontgomery(p)
-
-	var e fp.Element
-	e.SetOne()
+	u, w, e := edwardsToPorninMontgomeryScaled(p)
 
 	if !halvePornin(&u, &w, &e) {
 		return false

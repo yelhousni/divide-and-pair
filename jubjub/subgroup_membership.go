@@ -122,6 +122,27 @@ func isLowOrder(X, Y *fp.Element) bool {
 	return X.Equal(&iY)
 }
 
+// edwardsToPorninMontgomeryScaled maps an affine point to scaled Montgomery
+// coordinates without the initial inversion. The represented point is on
+// Curve(A*e^2, B*e^4) with:
+//
+//	e = x(1-y)
+//	u = (a-d)(1+y)x^2(1-y)
+//	w = 2(1-y)
+func edwardsToPorninMontgomeryScaled(p *PointAffine) (u, w, e fp.Element) {
+	var oneMinusY, onePlusY fp.Element
+	var one fp.Element
+	one.SetOne()
+	oneMinusY.Sub(&one, &p.Y)
+	onePlusY.Add(&one, &p.Y)
+	e.Mul(&p.X, &oneMinusY)
+	u.Mul(&aMinusD, &onePlusY)
+	u.Mul(&u, &p.X)
+	u.Mul(&u, &e)
+	w.Double(&oneMinusY)
+	return
+}
+
 // edwardsToPorninMontgomery converts an affine Edwards point (x, y) to
 // Pornin's Montgomery (u, w) coordinates, batching the two inversions
 // into one using Montgomery's trick.
@@ -226,10 +247,7 @@ func (p *PointAffine) isInSubGroupPornin() bool {
 		return p.IsZero()
 	}
 
-	u, w := edwardsToPorninMontgomery(p)
-
-	var e fp.Element
-	e.SetOne()
+	u, w, e := edwardsToPorninMontgomeryScaled(p)
 
 	for range 2 {
 		var uNew, wNew, eNew fp.Element
