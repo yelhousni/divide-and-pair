@@ -12,8 +12,9 @@ var (
 	smtInitOnce sync.Once
 
 	// Weierstrass model constants (over Fp2)
-	aW    fp2.E2
-	Adiv3 fp2.E2
+	aMinusD fp2.E2
+	aW      fp2.E2
+	Adiv3   fp2.E2
 
 	// 8-torsion point T8 on Weierstrass
 	XT8, YT8, lamT8 fp2.E2
@@ -46,12 +47,12 @@ var (
 func initSMTConstants() {
 	initOnce.Do(initCurveParams)
 
-	amd := new(fp2.E2).Sub(&curveParams.A, &curveParams.D)
+	aMinusD.Sub(&curveParams.A, &curveParams.D)
 	apd := new(fp2.E2).Add(&curveParams.A, &curveParams.D)
 
 	var Amg, Bmg fp2.E2
 	Amg.Add(apd, apd)
-	Bmg.Square(amd)
+	Bmg.Square(&aMinusD)
 	three.A0.SetUint64(3)
 
 	var threeInv fp2.E2
@@ -142,42 +143,40 @@ func initSMTConstants() {
 // Uses Norm accumulation entirely in Fp without Fp2 inversions.
 func septicCheckWith(XQ, YQ *fp2.E2,
 	xS7, yS7, ld1, x2S, y2S, la1, x3S, y3S, ld2, x6S *fp2.E2) bool {
+	var diffXS, diffX2S, diffX3S fp2.E2
+	diffXS.Sub(XQ, xS7)
+	diffX2S.Sub(XQ, x2S)
+	diffX3S.Sub(XQ, x3S)
+
 	// Step 1a: double S → [2]S
 	var ellD1, vD1 fp2.E2
 	{
-		var tmp fp2.E2
-		tmp.Sub(XQ, xS7)
-		ellD1.Mul(ld1, &tmp)
+		ellD1.Mul(ld1, &diffXS)
 		ellD1.Sub(YQ, &ellD1)
 		ellD1.Sub(&ellD1, yS7)
-		vD1.Sub(XQ, x2S)
+		vD1.Set(&diffX2S)
 	}
 
 	// Step 1b: add [2]S + S → [3]S
 	var ellA1, vA1 fp2.E2
 	{
-		var tmp fp2.E2
-		tmp.Sub(XQ, x2S)
-		ellA1.Mul(la1, &tmp)
+		ellA1.Mul(la1, &diffX2S)
 		ellA1.Sub(YQ, &ellA1)
 		ellA1.Sub(&ellA1, y2S)
-		vA1.Sub(XQ, x3S)
+		vA1.Set(&diffX3S)
 	}
 
 	// Step 2a: double [3]S → [6]S
 	var ellD2, vD2 fp2.E2
 	{
-		var tmp fp2.E2
-		tmp.Sub(XQ, x3S)
-		ellD2.Mul(ld2, &tmp)
+		ellD2.Mul(ld2, &diffX3S)
 		ellD2.Sub(YQ, &ellD2)
 		ellD2.Sub(&ellD2, y3S)
 		vD2.Sub(XQ, x6S)
 	}
 
 	// Step 2b: vertical line
-	var gVert fp2.E2
-	gVert.Sub(XQ, xS7)
+	gVert := diffXS
 
 	// Compute Norm of each line/vertical in Fp.
 	nEllD1 := ellD1.Norm()
@@ -237,9 +236,8 @@ func edwardsToWeierstrass(p *PointAffine) (X, Y fp2.E2) {
 	invOMY.Mul(&inv, &p.X)
 	invX.Mul(&inv, &oneMinusY)
 
-	amd := new(fp2.E2).Sub(&curveParams.A, &curveParams.D)
 	var u, w fp2.E2
-	u.Mul(amd, &onePlusY)
+	u.Mul(&aMinusD, &onePlusY)
 	u.Mul(&u, &invOMY)
 	w.Add(&invX, &invX)
 	X.Add(&u, &Adiv3)
