@@ -309,6 +309,41 @@ func pracLucasV(t *fp.Element, pracOps []byte) fp.Element {
 	return A
 }
 
+// quarticAlphaScaled constructs a scaled version of alpha for the quartic
+// criterion directly from scaled Montgomery coordinates. If u = U/e^2 and
+// w = W/e, then this returns alpha * e^6, which leaves the later trace ratio
+// T/N unchanged.
+func quarticAlphaScaled(U, W, e *fp.Element) fp2.E2 {
+	var e2, We fp.Element
+	e2.Square(e)
+	We.Mul(W, e)
+
+	var l1 fp2.E2
+	l1.A0.Mul(&quarticLam.A0, U)
+	l1.A0.Neg(&l1.A0)
+	l1.A0.Add(&l1.A0, &We)
+	var tmp fp.Element
+	tmp.Mul(&quarticC.A0, &e2)
+	l1.A0.Sub(&l1.A0, &tmp)
+
+	l1.A1.Mul(&quarticLam.A1, U)
+	l1.A1.Neg(&l1.A1)
+	tmp.Mul(&quarticC.A1, &e2)
+	l1.A1.Sub(&l1.A1, &tmp)
+
+	var conjReE2 fp.Element
+	conjReE2.Mul(&quarticConjRe, &e2)
+
+	var conjV1 fp2.E2
+	conjV1.A0.Sub(U, &conjReE2)
+	conjV1.A1.Mul(&quarticConjIm, &e2)
+
+	var alpha fp2.E2
+	alpha.Square(&l1)
+	alpha.Mul(&alpha, &conjV1)
+	return alpha
+}
+
 // isInSubGroupQuartic tests subgroup membership using the torus approach
 // with a PRAC differential addition chain (Montgomery 1992) for the Lucas
 // V-sequence evaluation.
@@ -319,23 +354,8 @@ func (p *PointAffine) isInSubGroupQuartic() bool {
 		return p.IsZero()
 	}
 
-	u, w := edwardsToPorninMontgomery(p)
-
-	var l1 fp2.E2
-	l1.A0.Mul(&quarticLam.A0, &u)
-	l1.A1.Mul(&quarticLam.A1, &u)
-	l1.A0.Sub(&w, &l1.A0)
-	l1.A0.Sub(&l1.A0, &quarticC.A0)
-	l1.A1.Neg(&l1.A1)
-	l1.A1.Sub(&l1.A1, &quarticC.A1)
-
-	var conjV1 fp2.E2
-	conjV1.A0.Sub(&u, &quarticConjRe)
-	conjV1.A1.Set(&quarticConjIm)
-
-	var alpha fp2.E2
-	alpha.Square(&l1)
-	alpha.Mul(&alpha, &conjV1)
+	U, W, e := edwardsToPorninMontgomeryScaled(p)
+	alpha := quarticAlphaScaled(&U, &W, &e)
 
 	var a2, b2, T, N fp.Element
 	a2.Square(&alpha.A0)

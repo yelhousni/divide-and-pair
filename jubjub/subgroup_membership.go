@@ -31,7 +31,6 @@ var (
 	octicLamT4 fp.Element // tangent slope at T4
 	octicXT2   fp.Element // 2-torsion point X on Weierstrass
 	Adiv3      fp.Element // A/3 for Edwards-to-Weierstrass conversion
-	octicExp   big.Int    // (p-1)/8
 )
 
 func initSubgroupConstants() {
@@ -101,9 +100,6 @@ func initSubgroupConstants() {
 	twoYT4Inv.Inverse(&twoYT4)
 	octicLamT4.Mul(&num, &twoYT4Inv)
 
-	pBig := fp.Modulus()
-	octicExp.Sub(pBig, big.NewInt(1))
-	octicExp.Rsh(&octicExp, 3) // (p-1)/8
 }
 
 // isLowOrder checks if an affine point (X, Y) is a low-order point.
@@ -272,6 +268,24 @@ func edwardsToWeierstrass(p *PointAffine) (X, Y fp.Element) {
 	return
 }
 
+// edwardsToWeierstrassScaled maps an affine Edwards point to scaled
+// Weierstrass coordinates without the initial inversion. If e = x(1-y),
+// then the affine Weierstrass coordinates satisfy:
+//
+//	X = Xs / e^2
+//	Y = Ys / e^3
+func edwardsToWeierstrassScaled(p *PointAffine) (Xs, Ys, e fp.Element) {
+	U, W, e := edwardsToPorninMontgomeryScaled(p)
+
+	var e2 fp.Element
+	e2.Square(&e)
+
+	Xs.Mul(&Adiv3, &e2)
+	Xs.Add(&Xs, &U)
+	Ys.Mul(&U, &W)
+	return
+}
+
 // isInSubGroupOcticExp tests subgroup membership using the divide-and-pair
 // method with 0 halvings + 1 octic residuosity check.
 //
@@ -286,26 +300,42 @@ func (p *PointAffine) isInSubGroupOcticExp() bool {
 		return p.IsZero()
 	}
 
-	XQ, YQ := edwardsToWeierstrass(p)
+	XQ, YQ, e := edwardsToWeierstrassScaled(p)
+	var e2, e3 fp.Element
+	e2.Square(&e)
+	e3.Mul(&e2, &e)
 
 	// Miller function f_{8,T₈}(Q):
 	// R = T₈, f = 1. Three doubling steps for 8 = 1000₂.
 	//
-	// Step 1 (R=T₈→T₄): f = ℓ_{T₈}(Q) / v_{T₄}(Q)
+	// Step 1 (R=T₈→T₄): use scaled line values. Since X = XQ/e² and Y = YQ/e³,
+	// the common denominator contributes an 8th power overall and does not
+	// affect the final octic symbol.
 	var xd, ell1, v1 fp.Element
-	xd.Sub(&XQ, &octicXT8)
+	var xt8e2, yt8e3 fp.Element
+	xt8e2.Mul(&octicXT8, &e2)
+	yt8e3.Mul(&octicYT8, &e3)
+	xd.Sub(&XQ, &xt8e2)
 	ell1.Mul(&octicLamT8, &xd)
+	ell1.Mul(&ell1, &e)
 	ell1.Sub(&YQ, &ell1)
-	ell1.Sub(&ell1, &octicYT8)
-	v1.Sub(&XQ, &octicXT4)
+	ell1.Sub(&ell1, &yt8e3)
+
+	var xt4e2 fp.Element
+	xt4e2.Mul(&octicXT4, &e2)
+	v1.Sub(&XQ, &xt4e2)
 
 	// Step 2 (R=T₄→T₂): f = f² · ℓ_{T₄}(Q) / v_{T₂}(Q)
 	var xd2, ell2, v2 fp.Element
-	xd2.Sub(&XQ, &octicXT4)
+	var yt4e3, xt2e2 fp.Element
+	yt4e3.Mul(&octicYT4, &e3)
+	xt2e2.Mul(&octicXT2, &e2)
+	xd2.Sub(&XQ, &xt4e2)
 	ell2.Mul(&octicLamT4, &xd2)
+	ell2.Mul(&ell2, &e)
 	ell2.Sub(&YQ, &ell2)
-	ell2.Sub(&ell2, &octicYT4)
-	v2.Sub(&XQ, &octicXT2)
+	ell2.Sub(&ell2, &yt4e3)
+	v2.Sub(&XQ, &xt2e2)
 
 	// Step 3 (R=T₂→∞): f = f² · (X_Q - X_{T₂})
 	// At the 2-torsion point T₂ = (X_{T₂}, 0), the tangent is vertical,
@@ -334,7 +364,7 @@ func (p *PointAffine) isInSubGroupOcticExp() bool {
 
 	// χ₈(f) = result^((p-1)/8). Check if it equals 1.
 	var chi fp.Element
-	chi.Exp(result, &octicExp)
+	chi.ExpByOcticExp(result)
 	return chi.IsOne()
 }
 
