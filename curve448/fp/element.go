@@ -1443,12 +1443,9 @@ func (z *Element) Cube(x *Element) *Element {
 }
 
 // Inverse z = x⁻¹ (mod q)
-//
-// note: allocates a big.Int (math/big)
 func (z *Element) Inverse(x *Element) *Element {
-	var _xNonMont big.Int
-	x.BigInt(&_xNonMont)
-	_xNonMont.ModInverse(&_xNonMont, Modulus())
-	z.SetBigInt(&_xNonMont)
-	return z
+	if x.IsZero() {
+		return z.SetZero()
+	}
+	return z.ExpByInverseExp(*x)
 }
