@@ -54,7 +54,7 @@
 
   <!-- Top / bottom labels -->
   <text x="80" y="22" text-anchor="middle" font-family="monospace" font-size="9" fill="#555">E(𝔽q)</text>
-  <text x="80" y="395" text-anchor="middle" font-family="monospace" font-size="9" fill="#555">E(r)</text>
+  <text x="80" y="395" text-anchor="middle" font-family="monospace" font-size="9" fill="#555">E[r]</text>
 
   <!-- Fog label -->
   <text x="122" y="239" font-family="monospace" font-size="8" fill="#e08030">fog</text>
