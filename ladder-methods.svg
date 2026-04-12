@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 440">
+  <defs>
+    <marker id="ap" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0 1L5 5L0 9" fill="none" stroke="#8855cc" stroke-width="1.5" stroke-linejoin="round"/>
+    </marker>
+    <marker id="ab" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0 1L5 5L0 9" fill="none" stroke="#cc4444" stroke-width="1.5" stroke-linejoin="round"/>
+    </marker>
+    <marker id="at" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0 1L5 5L0 9" fill="none" stroke="#2299aa" stroke-width="1.5" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Rails -->
+  <line x1="60" y1="30" x2="60" y2="380" stroke="#555" stroke-width="2"/>
+  <line x1="100" y1="30" x2="100" y2="380" stroke="#555" stroke-width="2"/>
+
+  <!-- Rung k (top) -->
+  <line x1="60" y1="55" x2="100" y2="55" stroke="#555" stroke-width="2"/>
+  <!-- Rung k-1 -->
+  <line x1="60" y1="100" x2="100" y2="100" stroke="#555" stroke-width="2"/>
+
+  <!-- Dots (above fog) -->
+  <circle cx="80" cy="130" r="1.5" fill="#888"/>
+  <circle cx="80" cy="145" r="1.5" fill="#888"/>
+  <circle cx="80" cy="160" r="1.5" fill="#888"/>
+
+  <!-- Rung t+1 -->
+  <line x1="60" y1="190" x2="100" y2="190" stroke="#555" stroke-width="2"/>
+
+  <!-- Rung t (fog rung - drawn by fog line above) -->
+
+  <!-- Fog rung (solid, colored) -->
+  <line x1="60" y1="235" x2="100" y2="235" stroke="#e08030" stroke-width="2.5"/>
+
+  <!-- Rung t-1 -->
+  <line x1="60" y1="280" x2="100" y2="280" stroke="#555" stroke-width="2"/>
+
+  <!-- Dots (below fog) -->
+  <circle cx="80" cy="310" r="1.5" fill="#888"/>
+  <circle cx="80" cy="325" r="1.5" fill="#888"/>
+  <circle cx="80" cy="340" r="1.5" fill="#888"/>
+
+  <!-- Rung 1 (bottom) -->
+  <line x1="60" y1="365" x2="100" y2="365" stroke="#555" stroke-width="2"/>
+
+  <!-- Rung labels -->
+  <text x="50" y="59" text-anchor="end" font-family="monospace" font-size="9" fill="#888">k</text>
+  <text x="50" y="104" text-anchor="end" font-family="monospace" font-size="9" fill="#888">k−1</text>
+  <text x="50" y="194" text-anchor="end" font-family="monospace" font-size="9" fill="#888">t+1</text>
+  <text x="50" y="239" text-anchor="end" font-family="monospace" font-size="9" fill="#888">t</text>
+  <text x="50" y="284" text-anchor="end" font-family="monospace" font-size="9" fill="#888">t−1</text>
+  <text x="50" y="369" text-anchor="end" font-family="monospace" font-size="9" fill="#888">1</text>
+
+  <!-- Top / bottom labels -->
+  <text x="80" y="22" text-anchor="middle" font-family="monospace" font-size="9" fill="#555">E(𝔽q)</text>
+  <text x="80" y="395" text-anchor="middle" font-family="monospace" font-size="9" fill="#555">E(r)</text>
+
+  <!-- Fog label -->
+  <text x="122" y="239" font-family="monospace" font-size="8" fill="#e08030">fog</text>
+
+  <!-- === Pornin (purple): climb k−1, pair 1 === -->
+  <!-- Climb: top down to rung 2 (just above rung 1) -->
+  <line x1="140" y1="55" x2="140" y2="358" stroke="#8855cc" stroke-width="1.5" marker-end="url(#ap)"/>
+  <!-- Pair: tiny curve for last rung -->
+  <path d="M140 370 C148 378 148 383 140 388" fill="none" stroke="#8855cc" stroke-width="1.5" stroke-dasharray="3 2" marker-end="url(#ap)"/>
+  <text x="140" y="415" text-anchor="middle" font-family="monospace" font-size="8" fill="#8855cc">Pornin</text>
+  <text x="140" y="426" text-anchor="middle" font-family="monospace" font-size="7" fill="#8855cc">climb k−1</text>
+  <text x="140" y="436" text-anchor="middle" font-family="monospace" font-size="7" fill="#8855cc">pair 1</text>
+
+  <!-- === Koshelev (red): climb 0, pair k === -->
+  <path d="M185 55 C220 150 220 300 185 370" fill="none" stroke="#cc4444" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ab)"/>
+  <text x="185" y="415" text-anchor="middle" font-family="monospace" font-size="8" fill="#cc4444">Koshelev</text>
+  <text x="185" y="426" text-anchor="middle" font-family="monospace" font-size="7" fill="#cc4444">climb 0</text>
+  <text x="185" y="436" text-anchor="middle" font-family="monospace" font-size="7" fill="#cc4444">pair k (k≤t)</text>
+
+  <!-- === Divide-And-Pair (teal): climb k−t, pair t === -->
+  <!-- Climb: top down to fog line -->
+  <line x1="240" y1="55" x2="240" y2="228" stroke="#2299aa" stroke-width="1.5" marker-end="url(#at)"/>
+  <!-- Pair: curve from fog to bottom -->
+  <path d="M240 242 C262 300 262 340 240 370" fill="none" stroke="#2299aa" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#at)"/>
+  <text x="250" y="415" text-anchor="middle" font-family="monospace" font-size="8" fill="#2299aa">Divide-And-Pair</text>
+  <text x="250" y="426" text-anchor="middle" font-family="monospace" font-size="7" fill="#2299aa">climb k−t</text>
+  <text x="250" y="436" text-anchor="middle" font-family="monospace" font-size="7" fill="#2299aa">pair t</text>
+</svg>

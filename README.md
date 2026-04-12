@@ -138,3 +138,12 @@ cargo bench --manifest-path crrl/Cargo.toml --bench ed25519 --features ed25519
 - Montgomery, [*Evaluating recurrences of form Xm+n = f(Xm, Xn, Xm-n) via Lucas chains*](https://cr.yp.to/bib/1992/montgomery-lucas.pdf), 1992.
 - [RFC 8032](https://www.rfc-editor.org/rfc/rfc8032), Edwards-Curve Digital Signature Algorithm (EdDSA).
 - [RFC 7836](https://www.rfc-editor.org/rfc/rfc7836), GC256A and GOST R 34.10-2012.
+
+
+<p align="center">
+  <picture>
+    <img src="ladder-methods.svg" width="200">
+  </picture>
+</p>
+
+
