@@ -20,6 +20,7 @@ Each curve lives in its own package:
 - `fourq/`
 - `curve448/`
 - `gc256a/`
+- `crrl/` submodule with the original Rust Ed25519/Curve25519 cross-check
 
 Inside each package:
 
@@ -94,11 +95,19 @@ Inside each package:
   - `BenchmarkIsInSubGroupPornin`
   - `BenchmarkIsInSubGroupQuartic`
 
+### Rust `crrl` cross-check
+
+- `crrl/` is a git submodule pointing to a fork of `crrl`
+- It implements the Curve25519/Ed25519 `QuarticExp` subgroup-membership method
+- Main Rust code path: `crrl/src/ed25519.rs`, `Point::is_in_subgroup_quartic_exp`
+- Main Rust benchmark file: `crrl/benches/ed25519.rs`
+
 ## Test and benchmark
 
 You need:
 
 - [Go](https://go.dev/doc/install) (tested with `1.25.7` and `1.26.0`)
+- for the `crrl/` comparison: `git` with submodule support and a Rust toolchain with `cargo`
 
 Run all tests:
 
@@ -110,6 +119,14 @@ Run the subgroup-membership benchmarks used for method comparisons:
 
 ```bash
 go test -run '^$' -bench IsInSubGroup -benchmem ./curve25519 ./jubjub ./fourq ./curve448 ./gc256a
+```
+
+Initialize the Rust submodule and run the Ed25519 cross-check:
+
+```bash
+git submodule update --init crrl
+cargo test --manifest-path crrl/Cargo.toml --features ed25519 ed25519::tests::in_subgroup
+cargo bench --manifest-path crrl/Cargo.toml --bench ed25519 --features ed25519
 ```
 
 ## References
