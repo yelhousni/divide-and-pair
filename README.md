@@ -9,7 +9,7 @@
   </picture>
 </p>
 
-Companion code for the article *"Divide-and-Pair: Faster subgroup membership testing for elliptic curves"* by Y. Dai, Y. El Housni, D. Koshelev and K. Reijnders.
+Companion code for the article *"Divide-and-Pair: Faster subgroup membership testing for elliptic curves"* by [Y. Dai](https://github.com/eccdaiy39), [Y. El Housni](https://github.com/yelhousni), [D. Koshelev](https://github.com/Dimitri-Koshelev) and [K. Reijnders](https://github.com/krijn-math).
 
 ## Code structure
 
