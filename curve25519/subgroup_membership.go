@@ -161,13 +161,14 @@ func quarticInputScaled(u, w, e *fp.Element) fp.Element {
 	return f
 }
 
-// isInSubGroupNaive tests subgroup membership by scalar multiplication by ℓ.
+// isInSubGroupNaive tests subgroup membership by scalar multiplication by ℓ,
+// using a fixed short addition chain (see mulByOrder).
 func (p *PointAffine) isInSubGroupNaive() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 	var proj PointProj
 	proj.FromAffine(p)
 	var res PointProj
-	res.ScalarMultiplication(&proj, &subgroupOrder)
+	res.mulByOrder(&proj)
 	return res.IsZero()
 }
 

@@ -238,13 +238,14 @@ func edwardsToWeierstrass(p *PointAffine) (X, Y fp2.E2) {
 	return
 }
 
-// isInSubGroupNaive tests subgroup membership by scalar multiplication by N.
+// isInSubGroupNaive tests subgroup membership by scalar multiplication by N,
+// using a fixed short addition chain (see mulByOrder).
 func (p *PointAffine) isInSubGroupNaive() bool {
 	initOnce.Do(initCurveParams)
 	var proj PointProj
 	proj.FromAffine(p)
 	var res PointProj
-	res.ScalarMultiplication(&proj, &curveParams.Order)
+	res.mulByOrder(&proj)
 	return res.IsZero()
 }
 

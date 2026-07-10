@@ -247,3 +247,66 @@ func TestOps(t *testing.T) {
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
+
+func TestMulByOrder(t *testing.T) {
+	t.Parallel()
+
+	// The identity maps to the identity.
+	var id, res PointProj
+	id.setInfinity()
+	res.mulByOrder(&id)
+	if !res.IsZero() {
+		t.Fatal("mulByOrder(O) should be the identity")
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 50
+	properties := gopter.NewProperties(parameters)
+	genS := GenBigInt()
+
+	properties.Property("mulByOrder agrees with ScalarMultiplication by the order", prop.ForAll(
+		func(s big.Int) bool {
+			params := curveParameters()
+
+			// Subgroup point p = [s]Base and non-subgroup point q = p + (0,-1).
+			var offset, p, q PointAffine
+			offset.X.SetZero()
+			offset.Y.SetOne()
+			offset.Y.Neg(&offset.Y)
+			p.ScalarMultiplication(&params.Base, &s)
+			q.Add(&p, &offset)
+
+			for _, pt := range []*PointAffine{&p, &q} {
+				var proj, want, got PointProj
+				proj.FromAffine(pt)
+				want.ScalarMultiplication(&proj, &params.Order)
+				got.mulByOrder(&proj)
+				if !projEqualMulByOrder(&want, &got) {
+					return false
+				}
+
+				// The receiver may alias the argument.
+				proj.mulByOrder(&proj)
+				if !projEqualMulByOrder(&want, &proj) {
+					return false
+				}
+			}
+			return true
+		},
+		genS,
+	))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
+// projEqualMulByOrder compares two projective points as curve points, i.e. up
+// to the projective factor.
+func projEqualMulByOrder(a, b *PointProj) bool {
+	if a.IsZero() || b.IsZero() {
+		return a.IsZero() == b.IsZero()
+	}
+	var aAff, bAff PointAffine
+	a.ToAffine(&aAff)
+	b.ToAffine(&bAff)
+	return aAff.Equal(&bAff)
+}
