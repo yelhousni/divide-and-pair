@@ -152,12 +152,18 @@ func TestLowOrderPoints(t *testing.T) {
 
 func benchSubgroup(b *testing.B, method func(*PointAffine) bool) {
 	params := curveParameters()
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
+	// Cycle over many random points so that input-dependent branches (e.g.
+	// the extra square root taken in point halving when an intermediate is a
+	// non-residue) are averaged over, rather than fixed by a single draw.
+	const nPoints = 256
+	points := make([]PointAffine, nPoints)
+	for i := range points {
+		k, _ := rand.Int(rand.Reader, &params.Order)
+		points[i].ScalarMultiplication(&params.Base, k)
+	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		method(&p)
+		method(&points[i%nPoints])
 	}
 }
 
