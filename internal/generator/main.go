@@ -1,10 +1,12 @@
-// Command generator emits, for each curve package, a mul_by_order.go file
-// containing a mulByOrder method on PointProj: a scalar multiplication by the
-// curve's prime subgroup order ℓ, unrolled as a short addition chain found
-// with github.com/mmcloughlin/addchain.
+// Command generator splices, into each curve package's point.go, fixed-scalar
+// multiplication methods on PointProj — mulByOrder (scalar = the prime
+// subgroup order ℓ) and mulByCofactor (scalar = the cofactor h) — unrolled as
+// short addition chains found with github.com/mmcloughlin/addchain. Each
+// method lives between BEGIN/END generation markers and is replaced in place
+// on regeneration.
 //
-// The generated files are written both to the main curve packages and to
-// their anonymized copies under artifact/. Run from anywhere:
+// The methods are written both to the main curve packages and to their
+// anonymized copies under artifact/. Run from anywhere:
 //
 //	go run -C internal/generator .
 //
@@ -12,6 +14,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"math/big"
 	"os"
@@ -37,30 +40,38 @@ type curveConfig struct {
 
 	// OrderComment optionally gives a human-readable special form of the order.
 	OrderComment string
+
+	// Cofactor is the curve cofactor h in decimal.
+	Cofactor string
 }
 
 var curves = []curveConfig{
 	{
 		Package:      "curve25519",
+		Cofactor:     "8",
 		Order:        "7237005577332262213973186563042994240857116359379907606001950938285454250989",
 		OrderComment: "2^252 + 27742317777372353535851937790883648493",
 	},
 	{
-		Package: "jubjub",
-		Order:   "6554484396890773809930967563523245729705921265872317281365359162392183254199",
+		Package:  "jubjub",
+		Cofactor: "8",
+		Order:    "6554484396890773809930967563523245729705921265872317281365359162392183254199",
 	},
 	{
-		Package: "fourq",
-		Order:   "73846995687063900142583536357581573884798075859800097461294096333596429543",
+		Package:  "fourq",
+		Cofactor: "392",
+		Order:    "73846995687063900142583536357581573884798075859800097461294096333596429543",
 	},
 	{
 		Package:      "curve448",
+		Cofactor:     "4",
 		Order:        "181709681073901722637330951972001133588410340171829515070372549795146003961539585716195755291692375963310293709091662304773755859649779",
 		OrderComment: "2^446 - 13818066809895115352007386748515426880336692474882178609894547503885",
 	},
 	{
-		Package: "gc256a",
-		Order:   "28948022309329048855892746252171976963338560298092253442512153408785530358887",
+		Package:  "gc256a",
+		Cofactor: "4",
+		Order:    "28948022309329048855892746252171976963338560298092253442512153408785530358887",
 	},
 }
 
@@ -70,17 +81,29 @@ func main() {
 	root := repoRoot()
 
 	for _, c := range curves {
-		n, ok := new(big.Int).SetString(c.Order, 10)
-		if !ok {
-			log.Fatalf("%s: invalid order %q", c.Package, c.Order)
+		order := mustInt(c.Package, "order", c.Order)
+		cofactor := mustInt(c.Package, "cofactor", c.Cofactor)
+
+		methods := []struct {
+			spec methodSpec
+			n    *big.Int
+		}{
+			{methodSpec{Name: "mulByOrder", Doc: mulByOrderDoc(c, order)}, order},
+			{methodSpec{Name: "mulByCofactor", Doc: mulByCofactorDoc(c)}, cofactor},
 		}
 
-		log.Printf("%s: searching addition chain for %d-bit order", c.Package, n.BitLen())
-		prog, script := searchChain(n)
-
-		block, err := emitMethod(c, n, prog, script)
-		if err != nil {
-			log.Fatalf("%s: %v", c.Package, err)
+		blocks := make(map[string]string, len(methods))
+		for _, m := range methods {
+			log.Printf("%s: searching addition chain for %s (%d-bit scalar)",
+				c.Package, m.spec.Name, m.n.BitLen())
+			prog, script := searchChain(m.n)
+			block, err := emitMethod(m.spec, prog, script)
+			if err != nil {
+				log.Fatalf("%s: %s: %v", c.Package, m.spec.Name, err)
+			}
+			blocks[m.spec.Name] = block
+			log.Printf("%s: %s: %d doublings, %d additions",
+				c.Package, m.spec.Name, prog.Program.Doubles(), prog.Program.Adds())
 		}
 
 		for _, dir := range []string{c.Package, filepath.Join("artifact", c.Package)} {
@@ -89,19 +112,59 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			out, err := splice(src, block)
-			if err != nil {
-				log.Fatalf("%s: %v", path, err)
+			for _, m := range methods {
+				src, err = splice(src, m.spec.Name, blocks[m.spec.Name])
+				if err != nil {
+					log.Fatalf("%s: %v", path, err)
+				}
 			}
-			if err := os.WriteFile(path, out, 0o644); err != nil {
+			if err := os.WriteFile(path, src, 0o644); err != nil {
 				log.Fatal(err)
 			}
-			// Clean up the previous generation layout, which kept the method
-			// in its own file.
-			_ = os.Remove(filepath.Join(root, dir, "mul_by_order.go"))
-			log.Printf("%s: updated %s (%d doublings, %d additions)",
-				c.Package, path, prog.Program.Doubles(), prog.Program.Adds())
+			log.Printf("%s: updated %s", c.Package, path)
 		}
+	}
+}
+
+// mustInt parses a decimal integer from the curve config.
+func mustInt(pkg, what, s string) *big.Int {
+	n, ok := new(big.Int).SetString(s, 10)
+	if !ok {
+		log.Fatalf("%s: invalid %s %q", pkg, what, s)
+	}
+	return n
+}
+
+// mulByOrderDoc returns the leading doc comment of the mulByOrder method.
+func mulByOrderDoc(c curveConfig, n *big.Int) []string {
+	doc := []string{
+		"// mulByOrder computes p = [ℓ]a and returns p, where",
+		"//",
+		"//\tℓ = " + c.Order,
+	}
+	if c.OrderComment != "" {
+		doc = append(doc, "//\t  = "+c.OrderComment)
+	}
+	return append(doc,
+		"//",
+		fmt.Sprintf("// is the %d-bit prime subgroup order. The scalar multiplication is unrolled", n.BitLen()),
+		fmt.Sprintf("// as a short addition chain generated with %s.", addchainCitation()),
+		"//",
+		"// The unified Add/Double formulas are valid for arbitrary curve points",
+		"// (including the identity and points outside the ℓ-torsion subgroup), so the",
+		"// result is the identity if and only if a is in the prime-order subgroup.",
+	)
+}
+
+// mulByCofactorDoc returns the leading doc comment of the mulByCofactor method.
+func mulByCofactorDoc(c curveConfig) []string {
+	return []string{
+		"// mulByCofactor computes p = [h]a and returns p, where",
+		"//",
+		"//\th = " + c.Cofactor,
+		"//",
+		"// is the cofactor. The result lies in the prime-order subgroup for any",
+		fmt.Sprintf("// curve point a. The chain was generated with %s.", addchainCitation()),
 	}
 }
 

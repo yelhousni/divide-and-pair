@@ -1,7 +1,6 @@
 package fourq
 
 import (
-	"math/big"
 	"sync"
 
 	fp "github.com/yelhousni/divide-and-pair/fourq/fp"
@@ -247,12 +246,6 @@ func (p *PointAffine) isInSubGroupNaive() bool {
 	var res PointProj
 	res.mulByOrder(&proj)
 	return res.IsZero()
-}
-
-// ClearCofactor sets p to [392]*p and returns p.
-func (p *PointAffine) ClearCofactor() *PointAffine {
-	p.ScalarMultiplication(p, big.NewInt(392))
-	return p
 }
 
 // isInSubGroupTate tests subgroup membership using the divide-and-pair

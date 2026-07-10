@@ -371,7 +371,7 @@ func (p *PointAffine) isInSubGroupEndo() bool {
 	// is, P has order dividing 392, which means P ∉ E[N] (since N is prime
 	// and gcd(N, 392) = 1).
 	var cofP PointAffine
-	cofP.ScalarMultiplication(p, big.NewInt(392))
+	cofP.Set(p).ClearCofactor()
 	if cofP.IsZero() {
 		return false
 	}

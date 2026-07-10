@@ -310,3 +310,75 @@ func projEqualMulByOrder(a, b *PointProj) bool {
 	b.ToAffine(&bAff)
 	return aAff.Equal(&bAff)
 }
+
+func TestClearCofactor(t *testing.T) {
+	t.Parallel()
+
+	// The identity maps to the identity.
+	var id PointAffine
+	id.X.SetZero()
+	id.Y.SetOne()
+	id.ClearCofactor()
+	if !id.IsZero() {
+		t.Fatal("ClearCofactor(O) should be the identity")
+	}
+
+	// The order-2 point (0,-1) is killed by cofactor clearing.
+	var two PointAffine
+	two.X.SetZero()
+	two.Y.SetOne()
+	two.Y.Neg(&two.Y)
+	two.ClearCofactor()
+	if !two.IsZero() {
+		t.Fatal("ClearCofactor((0,-1)) should be the identity")
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 50
+	properties := gopter.NewProperties(parameters)
+	genS := GenBigInt()
+
+	properties.Property("ClearCofactor equals [h]P and lands in the subgroup", prop.ForAll(
+		func(s big.Int) bool {
+			params := curveParameters()
+
+			// Subgroup point p = [s]Base and non-subgroup point q = p + (0,-1).
+			var offset, p, q PointAffine
+			offset.X.SetZero()
+			offset.Y.SetOne()
+			offset.Y.Neg(&offset.Y)
+			p.ScalarMultiplication(&params.Base, &s)
+			q.Add(&p, &offset)
+
+			for _, pt := range []*PointAffine{&p, &q} {
+				var got, want PointAffine
+				got.Set(pt).ClearCofactor()
+				want.ScalarMultiplication(pt, big.NewInt(4))
+				if !got.Equal(&want) {
+					return false
+				}
+				if !got.IsOnCurve() || !got.isInSubGroupNaive() {
+					return false
+				}
+			}
+			return true
+		},
+		genS,
+	))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
+func BenchmarkClearCofactor(b *testing.B) {
+	params := curveParameters()
+	k, _ := rand.Int(rand.Reader, &params.Order)
+	var p PointAffine
+	p.ScalarMultiplication(&params.Base, k)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var q PointAffine
+		q.Set(&p)
+		q.ClearCofactor()
+	}
+}

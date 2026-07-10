@@ -139,6 +139,30 @@ func TestClearCofactor(t *testing.T) {
 	if !p.isInSubGroupNaive() {
 		t.Fatal("[392]*k*Base should be in subgroup")
 	}
+
+	// The order-2 point (0,-1) is killed by cofactor clearing.
+	var two PointAffine
+	two.SetInfinity()
+	two.Y.Neg(&two.Y)
+	two.ClearCofactor()
+	if !two.IsZero() {
+		t.Fatal("ClearCofactor((0,-1)) should be the identity")
+	}
+
+	// Non-subgroup point q = p + (0,-1): after clearing it must equal
+	// [392]q and be in the subgroup.
+	var offset, q, got, want PointAffine
+	offset.SetInfinity()
+	offset.Y.Neg(&offset.Y)
+	q.Add(&p, &offset)
+	got.Set(&q).ClearCofactor()
+	want.ScalarMultiplication(&q, big.NewInt(392))
+	if !got.Equal(&want) {
+		t.Fatal("ClearCofactor(q) != [392]q")
+	}
+	if !got.isInSubGroupNaive() {
+		t.Fatal("[392]q should be in subgroup")
+	}
 }
 
 func BenchmarkClearCofactor(b *testing.B) {
