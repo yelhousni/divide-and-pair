@@ -21,23 +21,22 @@ doublings/additions, affine in/out).
 
 - **Reported values:** benchstat means over 10 runs (variation ≤ ±4% on
   ClearCofactor, ≤ ±1% on the naive test).
-- **Input points:** the subgroup-membership benchmarks cycle over 256 random
-  input points (see `benchSubgroup`). Timing a single fixed point instead
-  lets the branch predictor learn the data-dependent branch pattern of the
-  field arithmetic and understates the cost on random inputs (by ~13% on
-  curve25519 and up to ~85% on fourq). `BenchmarkClearCofactor` still uses a
-  fixed input point.
-- **Date:** 2026-07-10.
+- **Input points:** all benchmarks (`benchSubgroup` and
+  `BenchmarkClearCofactor`) cycle over 256 random input points. Timing a
+  single fixed point instead lets the branch predictor learn the
+  data-dependent branch pattern of the field arithmetic and understates the
+  cost on random inputs (by ~13% on curve25519 and up to ~85% on fourq).
+- **Date:** 2026-07-13.
 
 ## Results
 
 | Curve      | Field    | ℓ bits | h   | isInSubGroupNaive | ClearCofactor |
 |------------|----------|--------|-----|-------------------|---------------|
-| curve25519 | Fp, p255 | 253    | 8   | 66.2 µs           | 1.89 µs       |
-| jubjub     | Fp, p255 | 252    | 8   | 62.8 µs           | 1.80 µs       |
-| fourq      | Fp², p127| 246    | 392 | 102.0 µs          | 2.53 µs       |
-| curve448   | Fp, p448 | 446    | 4   | 263.2 µs          | 28.1 µs       |
-| gc256a     | Fp, p256 | 255    | 4   | 65.9 µs           | 1.97 µs       |
+| curve25519 | Fp, p255 | 253    | 8   | 66.2 µs           | 2.97 µs       |
+| jubjub     | Fp, p255 | 252    | 8   | 62.8 µs           | 2.84 µs       |
+| fourq      | Fp², p127| 246    | 392 | 102.0 µs          | 4.63 µs       |
+| curve448   | Fp, p448 | 446    | 4   | 263.2 µs          | 29.5 µs       |
+| gc256a     | Fp, p256 | 255    | 4   | 65.9 µs           | 2.17 µs       |
 
 ## Notes
 

@@ -167,14 +167,17 @@ func TestClearCofactor(t *testing.T) {
 
 func BenchmarkClearCofactor(b *testing.B) {
 	params := curveParameters()
-	k, _ := rand.Int(rand.Reader, &params.Order)
-	var p PointAffine
-	p.ScalarMultiplication(&params.Base, k)
-
+	// Cycle over many random points (see benchSubgroup for the rationale).
+	const nPoints = 256
+	points := make([]PointAffine, nPoints)
+	for i := range points {
+		k, _ := rand.Int(rand.Reader, &params.Order)
+		points[i].ScalarMultiplication(&params.Base, k)
+	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var q PointAffine
-		q.Set(&p)
+		q.Set(&points[i%nPoints])
 		q.ClearCofactor()
 	}
 }
