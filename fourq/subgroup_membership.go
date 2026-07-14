@@ -180,6 +180,9 @@ func septicCheckWith(XQ, YQ *fp2.E2,
 
 	// Norm(f7) = Norm(f8) = Norm(ℓ1)^4 · Norm(ℓ2)^2 · Norm(ℓ4)
 	//                          / (Norm(v2)^4 · Norm(v4)^2 · Norm(v1))
+	// Multiplying by Norm(v2)^7 · Norm(v4)^7 · Norm(v1)^7 (seventh powers,
+	// invisible to χ₇) gives the inversion-free representative
+	// Norm(ℓ1)^4 · Norm(ℓ2)^2 · Norm(ℓ4) · Norm(v2)^3 · Norm(v4)^5 · Norm(v1)^6.
 	var num fp.Element
 	num.Square(&nEll1)
 	num.Square(&num)
@@ -188,18 +191,24 @@ func septicCheckWith(XQ, YQ *fp2.E2,
 	num.Mul(&num, &t)
 	num.Mul(&num, &nEll4)
 
-	var den fp.Element
-	den.Square(&nV2)
-	den.Square(&den)
+	// v2^3 = v2^2 · v2
+	t.Square(&nV2)
+	t.Mul(&t, &nV2)
+	num.Mul(&num, &t)
+
+	// v4^5 = (v4^2)^2 · v4
 	t.Square(&nV4)
-	den.Mul(&den, &t)
-	den.Mul(&den, &nV1)
+	t.Square(&t)
+	t.Mul(&t, &nV4)
+	num.Mul(&num, &t)
 
-	// Norm(f7) = Norm(f8) = num / den
-	den.Inverse(&den)
-	num.Mul(&num, &den)
+	// v1^6 = (v1^2 · v1)^2
+	t.Square(&nV1)
+	t.Mul(&t, &nV1)
+	t.Square(&t)
+	num.Mul(&num, &t)
 
-	// χ₇(f7) = Norm(f7)^((p-1)/7) ?= 1
+	// χ₇(f7) = num^((p-1)/7) ?= 1, with num ≡ Norm(f7) modulo 7th powers
 	var result fp.Element
 	result.ExpBySepticFp(num)
 	return result.IsOne()
