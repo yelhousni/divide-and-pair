@@ -11,7 +11,7 @@
 
 Companion code for the article *"Divide-and-Pair: Faster subgroup membership testing for elliptic curves"* by [Y. Dai](https://github.com/eccdaiy39), [Y. El Housni](https://github.com/yelhousni), [D. Koshelev](https://github.com/Dimitri-Koshelev) and [K. Reijnders](https://github.com/krijn-math).
 
-e-print: https://eprint.iacr.org/2026/749.
+e-print: https://eprint.iacr.org/2026/749. To appear in TCHES Volume 2027/1.
 
 ## Code structure
 
