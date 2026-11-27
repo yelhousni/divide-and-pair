@@ -53,13 +53,15 @@ Inside each package:
 
 - Naive baseline: `jubjub/subgroup_membership.go`, `(*PointAffine).isInSubGroupNaive`
 - Pornin method: `jubjub/subgroup_membership.go`, `(*PointAffine).isInSubGroupPornin`
-- Divide-and-pair octic method: `jubjub/subgroup_membership.go`, `(*PointAffine).isInSubGroupOcticExp`
+- Divide-and-pair octic methods: `jubjub/subgroup_membership.go`, `(*PointAffine).isInSubGroupOcticExp` (default) and `(*PointAffine).isInSubGroupOcticJoye`.
+- `(*Element).OcticSymbol` in `jubjub/fp` implements [Joye’s octic reciprocity algorithm](https://marcjoye.github.io/papers/Joy22octic.pdf) in the ring of eighth roots of unity. The variable-time descent uses signed two-limb coefficients followed by a native `int64` loop, with fixed-width exponentiation as a fallback. It returns the character exponent relative to `7^((p-1)/8)`, or −1 on zero.
 - Main tests reproducing the comparison:
   - `TestSubgroupMembership`
   - `TestSubgroupAgreement`
   - `BenchmarkIsInSubGroupNaive`
   - `BenchmarkIsInSubGroupPornin`
   - `BenchmarkIsInSubGroupOcticExp`
+  - `BenchmarkIsInSubGroupOcticJoye`
 
 ### FourQ
 

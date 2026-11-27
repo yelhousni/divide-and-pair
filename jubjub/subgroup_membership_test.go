@@ -1,8 +1,8 @@
 package jubjub
 
 import (
-	"crypto/rand"
 	"math/big"
+	"math/rand"
 	"testing"
 
 	"github.com/leanovate/gopter"
@@ -88,7 +88,7 @@ func TestSubgroupAgreement(t *testing.T) {
 			pornin := p.isInSubGroupPornin()
 			octic := p.isInSubGroupOcticExp()
 
-			return naive && pornin && octic
+			return naive && pornin && octic && p.isInSubGroupOcticJoye()
 		},
 		genS,
 	))
@@ -111,7 +111,7 @@ func TestSubgroupAgreement(t *testing.T) {
 			pornin := q.isInSubGroupPornin()
 			octic := q.isInSubGroupOcticExp()
 
-			return !naive && !pornin && !octic
+			return !naive && !pornin && !octic && !q.isInSubGroupOcticJoye()
 		},
 		genS,
 	))
@@ -125,16 +125,16 @@ func TestLowOrderPoints(t *testing.T) {
 	var id PointAffine
 	id.X.SetZero()
 	id.Y.SetOne()
-	if !id.isInSubGroupPornin() {
-		t.Fatal("identity should be in subgroup (Pornin)")
+	if !id.isInSubGroupOcticJoye() || !id.isInSubGroupPornin() {
+		t.Fatal("identity should be in subgroup")
 	}
 
 	var n PointAffine
 	n.X.SetZero()
 	n.Y.SetOne()
 	n.Y.Neg(&n.Y)
-	if n.isInSubGroupPornin() {
-		t.Fatal("(0,-1) should NOT be in subgroup (Pornin)")
+	if n.isInSubGroupOcticJoye() || n.isInSubGroupPornin() {
+		t.Fatal("(0,-1) should NOT be in subgroup")
 	}
 
 	// 4-torsion: (i, 0)
@@ -142,8 +142,8 @@ func TestLowOrderPoints(t *testing.T) {
 	t4.X.Set(&sqrtMinOne)
 	t4.Y.SetZero()
 	if t4.IsOnCurve() {
-		if t4.isInSubGroupPornin() {
-			t.Fatal("(i,0) should NOT be in subgroup (Pornin)")
+		if t4.isInSubGroupOcticJoye() || t4.isInSubGroupPornin() {
+			t.Fatal("(i,0) should NOT be in subgroup")
 		}
 	}
 }
@@ -157,8 +157,9 @@ func benchSubgroup(b *testing.B, method func(*PointAffine) bool) {
 	// non-residue) are averaged over, rather than fixed by a single draw.
 	const nPoints = 256
 	points := make([]PointAffine, nPoints)
+	rng := rand.New(rand.NewSource(1))
 	for i := range points {
-		k, _ := rand.Int(rand.Reader, &params.Order)
+		k := new(big.Int).Rand(rng, &params.Order)
 		points[i].ScalarMultiplication(&params.Base, k)
 	}
 	b.ResetTimer()
@@ -177,4 +178,8 @@ func BenchmarkIsInSubGroupPornin(b *testing.B) {
 
 func BenchmarkIsInSubGroupOcticExp(b *testing.B) {
 	benchSubgroup(b, (*PointAffine).isInSubGroupOcticExp)
+}
+
+func BenchmarkIsInSubGroupOcticJoye(b *testing.B) {
+	benchSubgroup(b, (*PointAffine).isInSubGroupOcticJoye)
 }
