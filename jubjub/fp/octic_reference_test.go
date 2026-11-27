@@ -1,6 +1,10 @@
 package fp
 
-import "math/big"
+import (
+	"math/big"
+
+	"github.com/yelhousni/divide-and-pair/internal/octic"
+)
 
 // Arithmetic in Z[t]/(t^4+1), with t a primitive eighth root of unity.
 // Coefficients are in ascending powers of t.
@@ -160,7 +164,7 @@ func (x *Element) octicSymbolReference() int {
 		b[i].Set(&octicPrime[i])
 	}
 	octicPrimeDivisor.remainder(a, r, b, &q, &h)
-	den := octicLawsOf(b.low())
+	den := octic.LawsOf(b.low())
 	var j uint64
 	for {
 		if a[0].Bit(0)^a[1].Bit(0)^a[2].Bit(0)^a[3].Bit(0) == 0 {
@@ -178,8 +182,8 @@ func (x *Element) octicSymbolReference() int {
 			// modulo 8 from its constant and cubic coefficients.
 			return int((j + (v[0]-1)*den.K + v[3]*den.L) & 7)
 		}
-		num := octicLawsOf(v)
-		j += num.reciprocity(den)
+		num := octic.LawsOf(v)
+		j += num.Reciprocity(den)
 		divisor.set(a, &A, &B, &h)
 		divisor.remainder(r, b, a, &q, &h)
 		a, b, r = r, a, b

@@ -68,6 +68,7 @@ Inside each package:
 - Naive baseline: `fourq/subgroup_membership.go`, `(*PointAffine).isInSubGroupNaive`
 - Endomorphism-based test: `fourq/endomorphisms.go`, `(*PointAffine).isInSubGroupEndo`
 - Divide-and-pair Tate method: `fourq/subgroup_membership.go`, `(*PointAffine).isInSubGroupTate`
+- `fourq/fp2.E2.OcticSymbol` computes the full octic character index over the quadratic extension with Joye’s variable-time descent. The FourQ subgroup benchmarks compare `isInSubGroupTateJoye` with the default torus predicate, using the same two septic checks.
 - Main tests reproducing the comparison:
   - `TestSubgroupMembership`
   - `TestSubgroupAgreement`

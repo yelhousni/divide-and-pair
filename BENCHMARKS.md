@@ -52,3 +52,23 @@ doublings/additions, affine in/out).
   fewer doublings.
 - Both operations run on public inputs in this context; the implementations
   are not constant-time.
+
+## FourQ octic character over Fp²
+
+Medians of seven 350 ms Go benchmarks on Apple M5, Go 1.26.0 darwin/arm64,
+with `purego` and `-cpu=1`. The field benchmarks cycle over the same 256
+seeded extension-field elements. The subgroup benchmarks use the same 256
+seeded subgroup points and perform both septic checks.
+
+| Operation | Existing torus | Joye |
+| --- | ---: | ---: |
+| Field operation | 1.558 µs | 2.256 µs |
+| Subgroup membership | 4.779 µs | 5.711 µs |
+
+The torus column tests whether the character equals one. Joye computes the
+full index in 0–7. Both methods allocated zero bytes per call. The default
+subgroup test uses the torus.
+
+```sh
+go test -p 1 -cpu=1 -tags purego -run '^$' -bench '^(BenchmarkOcticExtension|BenchmarkIsInSubGroupTate(Joye)?)$' -benchmem -benchtime=350ms -count=7 ./fourq
+```

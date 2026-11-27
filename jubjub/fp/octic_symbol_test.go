@@ -4,6 +4,8 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
+
+	"github.com/yelhousni/divide-and-pair/internal/octic"
 )
 
 func TestOcticSymbol(t *testing.T) {
@@ -72,7 +74,7 @@ func TestOcticSymbol(t *testing.T) {
 	}
 	// A small raw representative forces the wide quotient guard.
 	small := Element{3}
-	if _, ok := octicDescent(octicLift(&small)); ok {
+	if _, ok := octic.Descent(octicLift(&small), octicMod); ok {
 		t.Fatal("expected large quotient for raw 3")
 	}
 	check(small)
@@ -111,9 +113,9 @@ func BenchmarkOcticCharacter(b *testing.B) {
 
 func TestOcticLiftAndDescent(t *testing.T) {
 	p := Modulus()
-	toBig := func(w octicWord) *big.Int {
-		h := new(big.Int).Lsh(big.NewInt(w.hi), 64)
-		return h.Add(h, new(big.Int).SetUint64(w.lo))
+	toBig := func(w octic.Word) *big.Int {
+		h := new(big.Int).Lsh(big.NewInt(w.Hi), 64)
+		return h.Add(h, new(big.Int).SetUint64(w.Lo))
 	}
 	for i, c := range octicRecip {
 		n := new(big.Int).Lsh(new(big.Int).Abs(&octicPrimeDivisor.adj[i]), 256)
@@ -153,7 +155,7 @@ func TestOcticLiftAndDescent(t *testing.T) {
 		if raw != eval {
 			t.Fatalf("incorrect lift at input %d", i)
 		}
-		j, ok := octicDescent(a)
+		j, ok := octic.Descent(a, octicMod)
 		if ok {
 			completed++
 		} else {

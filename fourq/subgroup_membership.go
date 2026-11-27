@@ -257,7 +257,7 @@ func (p *PointAffine) isInSubGroupNaive() bool {
 	return res.IsZero()
 }
 
-// isInSubGroupTate tests subgroup membership using the divide-and-pair
+// isInSubGroupTateWith tests subgroup membership using the divide-and-pair
 // method: 0 divisions + octic check (2-part) + septic check (7-part).
 //
 // Octic: degree-8 Miller function on Weierstrass via 3-step doubling chain,
@@ -267,7 +267,7 @@ func (p *PointAffine) isInSubGroupNaive() bool {
 // Septic: use f_{8,S} on a 7-torsion point S via a precomputed 3-step
 // doubling chain; since [8]S = S, this is divisor-equivalent to f_{7,S}.
 // Then apply the norm trick and z^((p-1)/7) in Fp.
-func (p *PointAffine) isInSubGroupTate() bool {
+func (p *PointAffine) isInSubGroupTateWith(checkOctic func(fp2.E2) bool) bool {
 	smtInitOnce.Do(initSMTConstants)
 	initOnce.Do(initCurveParams)
 
@@ -308,6 +308,17 @@ func (p *PointAffine) isInSubGroupTate() bool {
 	f8.Mul(&f8, &ell22)
 	f8.Mul(&f8, &v27)
 
+	if !checkOctic(f8) {
+		return false
+	}
+
+	// === Septic checks ===
+	// E[7](Fp2) ≅ Z7 × Z7, so we need two independent 7-torsion points
+	// to verify Q ∈ [7]E(Fp2) (i.e., the 7-part of the cofactor is cleared).
+	return septicCheck(&XQ, &YQ) && septicCheckPrime(&XQ, &YQ)
+}
+
+func isOcticResidueTorus(f8 fp2.E2) bool {
 	// g = conj(f8)/f8. Trace: t = g + g⁻¹ = 2(a²-b²)/(a²+b²) for f8 = a+bi.
 	// Compute projectively: T = 2(a²-b²), N = a²+b² = Norm(f8).
 	var a2, b2 fp.Element
@@ -337,14 +348,16 @@ func (p *PointAffine) isInSubGroupTate() bool {
 	// Check t == 2, i.e., T == 2·N
 	var twoN fp.Element
 	twoN.Double(&N)
-	if !T.Equal(&twoN) {
-		return false
-	}
+	return T.Equal(&twoN)
 
-	// === Septic checks ===
-	// E[7](Fp2) ≅ Z7 × Z7, so we need two independent 7-torsion points
-	// to verify Q ∈ [7]E(Fp2) (i.e., the 7-part of the cofactor is cleared).
-	return septicCheck(&XQ, &YQ) && septicCheckPrime(&XQ, &YQ)
+}
+
+func (p *PointAffine) isInSubGroupTate() bool {
+	return p.isInSubGroupTateWith(isOcticResidueTorus)
+}
+
+func (p *PointAffine) isInSubGroupTateJoye() bool {
+	return p.isInSubGroupTateWith(func(x fp2.E2) bool { return x.OcticSymbol() == 0 })
 }
 
 // IsInSubGroup tests subgroup membership using the fastest available method.
