@@ -3,6 +3,7 @@ package fourq
 import (
 	"crypto/rand"
 	"math/big"
+	mrand "math/rand"
 	"testing"
 
 	"github.com/leanovate/gopter"
@@ -212,7 +213,7 @@ func TestSubgroupAgreement(t *testing.T) {
 			naive := p.isInSubGroupNaive()
 			tate := p.isInSubGroupTate()
 
-			return naive && tate
+			return naive && tate && p.isInSubGroupTateJoye() && p.isInSubGroupTateEuclidean()
 		},
 		genS,
 	))
@@ -282,7 +283,7 @@ func TestSepticRejection(t *testing.T) {
 	if T7.isInSubGroupNaive() {
 		t.Fatal("7-torsion point should NOT be in subgroup (naive)")
 	}
-	if T7.isInSubGroupTate() {
+	if T7.isInSubGroupTate() || T7.isInSubGroupTateJoye() || T7.isInSubGroupTateEuclidean() {
 		t.Fatal("7-torsion point should NOT be in subgroup (Tate)")
 	}
 
@@ -295,7 +296,7 @@ func TestSepticRejection(t *testing.T) {
 	if Q.isInSubGroupNaive() {
 		t.Fatal("subgroup + 7-torsion should NOT be in subgroup (naive)")
 	}
-	if Q.isInSubGroupTate() {
+	if Q.isInSubGroupTate() || Q.isInSubGroupTateJoye() || Q.isInSubGroupTateEuclidean() {
 		t.Fatal("subgroup + 7-torsion should NOT be in subgroup (Tate)")
 	}
 	t.Log("septic rejection test passed: both S7 and S7' checks needed")
@@ -341,10 +342,10 @@ func TestSepticF8MatchesLegacyF7(t *testing.T) {
 		t.Helper()
 		XQ, YQ := edwardsToWeierstrass(p)
 
-		if legacySepticCheckWith(&XQ, &YQ, &legacyS7) != septicCheck(&XQ, &YQ) {
+		if legacySepticCheckWith(&XQ, &YQ, &legacyS7) != isSeventhPowerExp(septicNormFirst(&XQ, &YQ)) {
 			t.Fatal("S7 legacy f7 check disagrees with f8 replacement")
 		}
-		if legacySepticCheckWith(&XQ, &YQ, &legacyS7p) != septicCheckPrime(&XQ, &YQ) {
+		if legacySepticCheckWith(&XQ, &YQ, &legacyS7p) != isSeventhPowerExp(septicNormSecond(&XQ, &YQ)) {
 			t.Fatal("S7' legacy f7 check disagrees with f8 replacement")
 		}
 	}
@@ -405,7 +406,7 @@ func TestLowOrderPoints(t *testing.T) {
 	// Identity
 	var id PointAffine
 	id.SetInfinity()
-	if !id.isInSubGroupTate() {
+	if !id.isInSubGroupTate() || !id.isInSubGroupTateJoye() {
 		t.Fatal("identity should be in subgroup (Tate)")
 	}
 
@@ -413,7 +414,7 @@ func TestLowOrderPoints(t *testing.T) {
 	var n PointAffine
 	n.SetInfinity()
 	n.Y.Neg(&n.Y)
-	if n.IsOnCurve() && n.isInSubGroupTate() {
+	if n.IsOnCurve() && (n.isInSubGroupTate() || n.isInSubGroupTateJoye()) {
 		t.Fatal("(0,-1) should NOT be in subgroup (Tate)")
 	}
 }
@@ -496,8 +497,9 @@ func benchSubgroup(b *testing.B, method func(*PointAffine) bool) {
 	// non-residue) are averaged over, rather than fixed by a single draw.
 	const nPoints = 256
 	points := make([]PointAffine, nPoints)
+	rng := mrand.New(mrand.NewSource(1))
 	for i := range points {
-		k, _ := rand.Int(rand.Reader, &params.Order)
+		k := new(big.Int).Rand(rng, &params.Order)
 		points[i].ScalarMultiplication(&params.Base, k)
 	}
 	b.ResetTimer()
@@ -526,6 +528,10 @@ func BenchmarkIsInSubGroupTate(b *testing.B) {
 	benchSubgroup(b, (*PointAffine).isInSubGroupTate)
 }
 
+func BenchmarkIsInSubGroupTateEuclidean(b *testing.B) {
+	benchSubgroup(b, (*PointAffine).isInSubGroupTateEuclidean)
+}
+
 func BenchmarkIsInSubGroupTateLegacySeptic(b *testing.B) {
 	benchSubgroup(b, isInSubGroupTateLegacySeptic)
 }
@@ -536,7 +542,7 @@ func BenchmarkIsInSubGroupEndo(b *testing.B) {
 
 func BenchmarkSepticCheckF8(b *testing.B) {
 	benchSeptic(b, func(XQ, YQ *fp2.E2) bool {
-		return septicCheck(XQ, YQ) && septicCheckPrime(XQ, YQ)
+		return isSeventhPowerExp(septicNormFirst(XQ, YQ)) && isSeventhPowerExp(septicNormSecond(XQ, YQ))
 	})
 }
 
@@ -544,5 +550,32 @@ func BenchmarkSepticCheckLegacyF7(b *testing.B) {
 	benchSeptic(b, func(XQ, YQ *fp2.E2) bool {
 		return legacySepticCheckWith(XQ, YQ, &legacyS7) &&
 			legacySepticCheckWith(XQ, YQ, &legacyS7p)
+	})
+}
+
+func BenchmarkIsInSubGroupTateJoye(b *testing.B) {
+	benchSubgroup(b, (*PointAffine).isInSubGroupTateJoye)
+}
+
+func BenchmarkOcticExtension(b *testing.B) {
+	var inputs [256]fp2.E2
+	rng := mrand.New(mrand.NewSource(1))
+	p := fp.Modulus()
+	for i := range inputs {
+		inputs[i].A0.SetBigInt(new(big.Int).Rand(rng, p))
+		inputs[i].A1.SetBigInt(new(big.Int).Rand(rng, p))
+		if isOcticResidueTorus(inputs[i]) != (inputs[i].OcticSymbol() == 0) {
+			b.Fatal("octic predicates disagree")
+		}
+	}
+	b.Run("TorusPredicate", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			isOcticResidueTorus(inputs[i%len(inputs)])
+		}
+	})
+	b.Run("JoyeIndex", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			inputs[i%len(inputs)].OcticSymbol()
+		}
 	})
 }

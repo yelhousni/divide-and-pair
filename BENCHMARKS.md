@@ -52,3 +52,46 @@ doublings/additions, affine in/out).
   fewer doublings.
 - Both operations run on public inputs in this context; the implementations
   are not constant-time.
+
+## Quartic characters over Fp²
+
+Medians of seven 350 ms Go benchmarks on Apple M5, Go 1.26.0 darwin/arm64,
+with `purego` and `-cpu=1`. Each field comparison uses the same 256 seeded
+extension-field elements. Each subgroup comparison uses the same 256 seeded
+subgroup points. The latter produces its own distribution of Miller values.
+
+| Curve | Operation | Torus PRAC | Gaussian GCD |
+| --- | --- | ---: | ---: |
+| Curve448 | Field operation | 48.248 µs | 16.850 µs |
+| Curve448 | Subgroup membership | 49.152 µs | 17.548 µs |
+| GC256A | Field operation | 13.412 µs | 7.707 µs |
+| GC256A | Subgroup membership | 11.950 µs | 7.944 µs |
+
+The torus column tests whether the character equals one. The GCD computes
+the full index in 0–3 and is the default for subgroup membership on both
+curves. Both GCD paths allocated zero bytes per call. The torus path allocated
+zero bytes on Curve448 and 600 bytes in 12 allocations per call on GC256A.
+
+```sh
+go test -p 1 -cpu=1 -tags purego -run '^$' -bench '^(BenchmarkQuarticExtension|BenchmarkIsInSubGroupQuartic(GCD)?)$' -benchmem -benchtime=350ms -count=7 ./curve448 ./gc256a
+```
+
+## FourQ octic character over Fp²
+
+Medians of seven 350 ms Go benchmarks on Apple M5, Go 1.26.0 darwin/arm64,
+with `purego` and `-cpu=1`. The field benchmarks cycle over the same 256
+seeded extension-field elements. The subgroup benchmarks use the same 256
+seeded subgroup points and perform both septic checks.
+
+| Operation | Existing torus | Joye |
+| --- | ---: | ---: |
+| Field operation | 1.558 µs | 2.256 µs |
+| Subgroup membership | 4.779 µs | 5.711 µs |
+
+The torus column tests whether the character equals one. Joye computes the
+full index in 0–7. Both methods allocated zero bytes per call. The default
+subgroup test uses the torus.
+
+```sh
+go test -p 1 -cpu=1 -tags purego -run '^$' -bench '^(BenchmarkOcticExtension|BenchmarkIsInSubGroupTate(Joye)?)$' -benchmem -benchtime=350ms -count=7 ./fourq
+```

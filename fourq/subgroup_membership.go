@@ -132,12 +132,12 @@ func initSMTConstants() {
 	lamDbl4p.A1.SetString("19521089044703608309393190658478202558")
 }
 
-// septicCheckWith performs the septic residuosity check χ₇(f_{8,S}(Q)) = 1
+// septicNorm computes a base-field representative of Norm(f_{8,S}(Q))
 // for a given 7-torsion point S and its precomputed 3-doubling chain.
 // Since [8]S = S, div(f_{8,S}) = div(f_{7,S}), so either Miller representative
 // yields the same septic symbol. Norm accumulation stays entirely in Fp.
-func septicCheckWith(XQ, YQ *fp2.E2,
-	xS7, yS7, ld1, x2S, y2S, ld2, x4S, y4S, ld4 *fp2.E2) bool {
+func septicNorm(XQ, YQ *fp2.E2,
+	xS7, yS7, ld1, x2S, y2S, ld2, x4S, y4S, ld4 *fp2.E2) fp.Element {
 	var diffXS, diffX2S, diffX4S fp2.E2
 	diffXS.Sub(XQ, xS7)
 	diffX2S.Sub(XQ, x2S)
@@ -209,20 +209,17 @@ func septicCheckWith(XQ, YQ *fp2.E2,
 	num.Mul(&num, &t)
 
 	// χ₇(f7) = num^((p-1)/7) ?= 1, with num ≡ Norm(f7) modulo 7th powers
-	var result fp.Element
-	result.ExpBySepticFp(num)
-	return result.IsOne()
+	return num
 }
 
-// septicCheck performs the septic check with the first 7-torsion point S7.
-func septicCheck(XQ, YQ *fp2.E2) bool {
-	return septicCheckWith(XQ, YQ,
+// The two Miller chains evaluate at independent generators of E[7].
+func septicNormFirst(XQ, YQ *fp2.E2) fp.Element {
+	return septicNorm(XQ, YQ,
 		&XS7, &YS7, &lamDbl1, &X2S, &Y2S, &lamDbl2, &X4S, &Y4S, &lamDbl4)
 }
 
-// septicCheckPrime performs the septic check with the second 7-torsion point S7'.
-func septicCheckPrime(XQ, YQ *fp2.E2) bool {
-	return septicCheckWith(XQ, YQ,
+func septicNormSecond(XQ, YQ *fp2.E2) fp.Element {
+	return septicNorm(XQ, YQ,
 		&XS7p, &YS7p, &lamDbl1p, &X2Sp, &Y2Sp, &lamDbl2p, &X4Sp, &Y4Sp, &lamDbl4p)
 }
 
@@ -257,7 +254,7 @@ func (p *PointAffine) isInSubGroupNaive() bool {
 	return res.IsZero()
 }
 
-// isInSubGroupTate tests subgroup membership using the divide-and-pair
+// isInSubGroupTateWith tests subgroup membership using the divide-and-pair
 // method: 0 divisions + octic check (2-part) + septic check (7-part).
 //
 // Octic: degree-8 Miller function on Weierstrass via 3-step doubling chain,
@@ -267,7 +264,7 @@ func (p *PointAffine) isInSubGroupNaive() bool {
 // Septic: use f_{8,S} on a 7-torsion point S via a precomputed 3-step
 // doubling chain; since [8]S = S, this is divisor-equivalent to f_{7,S}.
 // Then apply the norm trick and z^((p-1)/7) in Fp.
-func (p *PointAffine) isInSubGroupTate() bool {
+func (p *PointAffine) isInSubGroupTateWith(checkOctic func(fp2.E2) bool, isSeventhPower func(fp.Element) bool) bool {
 	smtInitOnce.Do(initSMTConstants)
 	initOnce.Do(initCurveParams)
 
@@ -308,6 +305,17 @@ func (p *PointAffine) isInSubGroupTate() bool {
 	f8.Mul(&f8, &ell22)
 	f8.Mul(&f8, &v27)
 
+	if !checkOctic(f8) {
+		return false
+	}
+
+	// === Septic checks ===
+	// E[7](Fp2) ≅ Z7 × Z7, so we need two independent 7-torsion points
+	// to verify Q ∈ [7]E(Fp2) (i.e., the 7-part of the cofactor is cleared).
+	return isSeventhPower(septicNormFirst(&XQ, &YQ)) && isSeventhPower(septicNormSecond(&XQ, &YQ))
+}
+
+func isOcticResidueTorus(f8 fp2.E2) bool {
 	// g = conj(f8)/f8. Trace: t = g + g⁻¹ = 2(a²-b²)/(a²+b²) for f8 = a+bi.
 	// Compute projectively: T = 2(a²-b²), N = a²+b² = Norm(f8).
 	var a2, b2 fp.Element
@@ -337,14 +345,24 @@ func (p *PointAffine) isInSubGroupTate() bool {
 	// Check t == 2, i.e., T == 2·N
 	var twoN fp.Element
 	twoN.Double(&N)
-	if !T.Equal(&twoN) {
-		return false
-	}
+	return T.Equal(&twoN)
+}
 
-	// === Septic checks ===
-	// E[7](Fp2) ≅ Z7 × Z7, so we need two independent 7-torsion points
-	// to verify Q ∈ [7]E(Fp2) (i.e., the 7-part of the cofactor is cleared).
-	return septicCheck(&XQ, &YQ) && septicCheckPrime(&XQ, &YQ)
+func isSeventhPowerExp(x fp.Element) bool {
+	var z fp.Element
+	return z.ExpBySepticFp(x).IsOne()
+}
+
+func (p *PointAffine) isInSubGroupTate() bool {
+	return p.isInSubGroupTateWith(isOcticResidueTorus, isSeventhPowerExp)
+}
+
+func (p *PointAffine) isInSubGroupTateJoye() bool {
+	return p.isInSubGroupTateWith(func(x fp2.E2) bool { return x.OcticSymbol() == 0 }, isSeventhPowerExp)
+}
+
+func (p *PointAffine) isInSubGroupTateEuclidean() bool {
+	return p.isInSubGroupTateWith(isOcticResidueTorus, func(x fp.Element) bool { return x.SepticSymbol() == 0 })
 }
 
 // IsInSubGroup tests subgroup membership using the fastest available method.

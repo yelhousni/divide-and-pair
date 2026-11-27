@@ -193,7 +193,7 @@ func (p *PointAffine) isInSubGroupPornin() bool {
 }
 
 // isInSubGroupQuartic tests subgroup membership using our improved method:
-// 1 halving + 1 quartic symbol (Weilert GCD).
+// 1 halving + 1 quartic symbol (Gaussian binary GCD).
 func (p *PointAffine) isInSubGroupQuartic() bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 
