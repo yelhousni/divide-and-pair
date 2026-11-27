@@ -212,7 +212,7 @@ func TestSubgroupAgreement(t *testing.T) {
 			naive := p.isInSubGroupNaive()
 			tate := p.isInSubGroupTate()
 
-			return naive && tate
+			return naive && tate && p.isInSubGroupTateEuclidean()
 		},
 		genS,
 	))
@@ -282,7 +282,7 @@ func TestSepticRejection(t *testing.T) {
 	if T7.isInSubGroupNaive() {
 		t.Fatal("7-torsion point should NOT be in subgroup (naive)")
 	}
-	if T7.isInSubGroupTate() {
+	if T7.isInSubGroupTate() || T7.isInSubGroupTateEuclidean() {
 		t.Fatal("7-torsion point should NOT be in subgroup (Tate)")
 	}
 
@@ -295,7 +295,7 @@ func TestSepticRejection(t *testing.T) {
 	if Q.isInSubGroupNaive() {
 		t.Fatal("subgroup + 7-torsion should NOT be in subgroup (naive)")
 	}
-	if Q.isInSubGroupTate() {
+	if Q.isInSubGroupTate() || Q.isInSubGroupTateEuclidean() {
 		t.Fatal("subgroup + 7-torsion should NOT be in subgroup (Tate)")
 	}
 	t.Log("septic rejection test passed: both S7 and S7' checks needed")
@@ -341,10 +341,10 @@ func TestSepticF8MatchesLegacyF7(t *testing.T) {
 		t.Helper()
 		XQ, YQ := edwardsToWeierstrass(p)
 
-		if legacySepticCheckWith(&XQ, &YQ, &legacyS7) != septicCheck(&XQ, &YQ) {
+		if legacySepticCheckWith(&XQ, &YQ, &legacyS7) != isSeventhPowerExp(septicNormFirst(&XQ, &YQ)) {
 			t.Fatal("S7 legacy f7 check disagrees with f8 replacement")
 		}
-		if legacySepticCheckWith(&XQ, &YQ, &legacyS7p) != septicCheckPrime(&XQ, &YQ) {
+		if legacySepticCheckWith(&XQ, &YQ, &legacyS7p) != isSeventhPowerExp(septicNormSecond(&XQ, &YQ)) {
 			t.Fatal("S7' legacy f7 check disagrees with f8 replacement")
 		}
 	}
@@ -526,6 +526,10 @@ func BenchmarkIsInSubGroupTate(b *testing.B) {
 	benchSubgroup(b, (*PointAffine).isInSubGroupTate)
 }
 
+func BenchmarkIsInSubGroupTateEuclidean(b *testing.B) {
+	benchSubgroup(b, (*PointAffine).isInSubGroupTateEuclidean)
+}
+
 func BenchmarkIsInSubGroupTateLegacySeptic(b *testing.B) {
 	benchSubgroup(b, isInSubGroupTateLegacySeptic)
 }
@@ -536,7 +540,7 @@ func BenchmarkIsInSubGroupEndo(b *testing.B) {
 
 func BenchmarkSepticCheckF8(b *testing.B) {
 	benchSeptic(b, func(XQ, YQ *fp2.E2) bool {
-		return septicCheck(XQ, YQ) && septicCheckPrime(XQ, YQ)
+		return isSeventhPowerExp(septicNormFirst(XQ, YQ)) && isSeventhPowerExp(septicNormSecond(XQ, YQ))
 	})
 }
 
