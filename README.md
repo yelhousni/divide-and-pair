@@ -69,11 +69,13 @@ Inside each package:
 - Endomorphism-based test: `fourq/endomorphisms.go`, `(*PointAffine).isInSubGroupEndo`
 - Divide-and-pair Tate method: `fourq/subgroup_membership.go`, `(*PointAffine).isInSubGroupTate`
 - `fourq/fp2.E2.OcticSymbol` computes the full octic character index over the quadratic extension with Joye’s variable-time descent. The FourQ subgroup benchmarks compare `isInSubGroupTateJoye` with the default torus predicate, using the same two septic checks.
+- The FourQ Tate test uses two septic characters over the 127-bit base field. `isInSubGroupTate` uses the fixed-exponent addition chain. `isInSubGroupTateEuclidean` uses the variable-time, fixed-width [Caranay–Scheidler algorithm](https://doi.org/10.1142/S1793042110003770) implemented by `(*Element).SepticSymbol` in `fourq/fp/septic_symbol.go`.
 - Main tests reproducing the comparison:
   - `TestSubgroupMembership`
   - `TestSubgroupAgreement`
   - `BenchmarkIsInSubGroupNaive`
   - `BenchmarkIsInSubGroupTate`
+  - `BenchmarkIsInSubGroupTateEuclidean`
   - `BenchmarkIsInSubGroupEndo`
 
 ### Curve448
