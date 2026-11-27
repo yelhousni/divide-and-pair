@@ -37,7 +37,7 @@ Inside each package:
 
 - Naive baseline: `curve25519/subgroup_membership.go`, `(*PointAffine).isInSubGroupNaive`
 - Pornin method: `curve25519/subgroup_membership.go`, `(*PointAffine).isInSubGroupPornin`
-- Divide-and-pair quartic test via Weilert GCD: `curve25519/subgroup_membership.go`, `(*PointAffine).isInSubGroupQuartic`
+- Divide-and-pair quartic test via Gaussian binary GCD: `curve25519/subgroup_membership.go`, `(*PointAffine).isInSubGroupQuartic`
 - Divide-and-pair quartic test via exponentiation: `curve25519/subgroup_membership.go`, `(*PointAffine).isInSubGroupQuarticExp`
 - Quartic symbol implementations: `curve25519/fp/quartic_symbol.go`
 - Main tests reproducing the comparison:
@@ -136,6 +136,7 @@ cargo bench --manifest-path crrl/Cargo.toml --bench ed25519 --features ed25519
 - Pornin, [*Point-halving and subgroup membership in twisted Edwards curves*](https://eprint.iacr.org/2022/1164), 2022.
 - Koshelev, [*Subgroup membership testing on elliptic curves via the Tate pairing*](https://eprint.iacr.org/2022/037), 2022.
 - Costello and Longa, [*FourQ: four-dimensional decompositions on a Q-curve over the Mersenne prime*](https://eprint.iacr.org/2015/565), ASIACRYPT 2015.
+- Damgård and Frandsen, [*Efficient Algorithms for gcd and Cubic Residuosity in the Ring of Eisenstein Integers*](https://www.brics.dk/RS/03/8/BRICS-RS-03-8.pdf), §5 on quartic residuosity in the Gaussian integers.
 - Weilert, [*Fast Computation of the Biquadratic Residue Symbol*](https://doi.org/10.1006/jnth.2002.2783), Journal of Number Theory, 2002.
 - Montgomery, [*Evaluating recurrences of form Xm+n = f(Xm, Xn, Xm-n) via Lucas chains*](https://cr.yp.to/bib/1992/montgomery-lucas.pdf), 1992.
 - [RFC 8032](https://www.rfc-editor.org/rfc/rfc8032), Edwards-Curve Digital Signature Algorithm (EdDSA).
