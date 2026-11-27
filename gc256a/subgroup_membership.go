@@ -345,10 +345,7 @@ func quarticAlphaScaled(U, W, e *fp.Element) fp2.E2 {
 	return alpha
 }
 
-// isInSubGroupQuartic tests subgroup membership using the torus approach
-// with a PRAC differential addition chain (Montgomery 1992) for the Lucas
-// V-sequence evaluation.
-func (p *PointAffine) isInSubGroupQuartic() bool {
+func (p *PointAffine) isInSubGroupQuarticWith(check func(fp2.E2) bool) bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 
 	if isLowOrder(&p.X, &p.Y) {
@@ -357,6 +354,10 @@ func (p *PointAffine) isInSubGroupQuartic() bool {
 
 	U, W, e := edwardsToPorninMontgomeryScaled(p)
 	alpha := quarticAlphaScaled(&U, &W, &e)
+	return check(alpha)
+}
+
+func isQuarticResidueTorus(alpha fp2.E2) bool {
 
 	var a2, b2, T, N fp.Element
 	a2.Square(&alpha.A0)
@@ -364,6 +365,9 @@ func (p *PointAffine) isInSubGroupQuartic() bool {
 	T.Sub(&a2, &b2)
 	T.Double(&T)
 	N.Add(&a2, &b2)
+	if N.IsZero() {
+		return false
+	}
 
 	var nInv, t fp.Element
 	nInv.Inverse(&N)
@@ -373,7 +377,15 @@ func (p *PointAffine) isInSubGroupQuartic() bool {
 	return result.Equal(&twoFp)
 }
 
+func (p *PointAffine) isInSubGroupQuartic() bool {
+	return p.isInSubGroupQuarticWith(isQuarticResidueTorus)
+}
+
+func (p *PointAffine) isInSubGroupQuarticGCD() bool {
+	return p.isInSubGroupQuarticWith(func(x fp2.E2) bool { return x.QuarticSymbol() == 0 })
+}
+
 // IsInSubGroup tests subgroup membership using the fastest available method.
 func (p *PointAffine) IsInSubGroup() bool {
-	return p.isInSubGroupQuartic()
+	return p.isInSubGroupQuarticGCD()
 }

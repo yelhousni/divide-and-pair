@@ -1,6 +1,10 @@
 package fp
 
-import "math/bits"
+import (
+	"math/bits"
+
+	"github.com/yelhousni/divide-and-pair/internal/quartic"
+)
 
 const (
 	// pi = A - Bi is primary, with norm p = 2^255 - 19.
@@ -97,13 +101,6 @@ func quarticReduce(z *Element) gaussian {
 	return gaussian{r, i}
 }
 
-// chi(i) and chi(1+i) as exponents of i for a primary denominator c+di.
-// The numerators in the supplementary laws are respectively even and
-// divisible by four, so their low bits suffice.
-func quarticSupp(c, d uint64) (unit, ramified uint64) {
-	return (1 - c) >> 1, (c - d - d*d - 1) >> 2
-}
-
 // Strip 2^k = (-i)^k (1+i)^(2k), then at most one more 1+i.
 // Rotate the remaining odd element by i^rotation to make it primary.
 func (g gaussian) primary(f gaussian) (gaussian, uint64) {
@@ -112,7 +109,7 @@ func (g gaussian) primary(f gaussian) (gaussian, uint64) {
 		k += bits.TrailingZeros64(g.r.mid | g.i.mid)
 	}
 	r, i := g.r.shift(k), g.i.shift(k)
-	unit, ramified := quarticSupp(f.r.lo, f.i.lo)
+	unit, ramified := quartic.Supp(f.r.lo, f.i.lo)
 	e := uint64(k) * (2*ramified - unit)
 	if r.lo&i.lo&1 != 0 {
 		r, i = r.add(i).shift(1), i.sub(r).shift(1)
@@ -144,46 +141,6 @@ func (g gaussian) size() quarticInt {
 	return r.add(i)
 }
 
-// Once both 1-norms are < 2^61, the same reduction fits in signed words,
-// including intermediate sums. Complex magnitudes decrease, so all
-// subsequent 1-norms are at most sqrt(2) times the starting maximum.
-func quarticWord(fr, fi, gr, gi int64, e uint64) uint8 {
-	for {
-		if (fi == 0 && fr == 1) || (gi == 0 && gr == 1) {
-			return uint8(e & 3)
-		}
-		if absWord(fr)+absWord(fi) > absWord(gr)+absWord(gi) {
-			e += uint64(fr & gr & 2)
-			fr, fi, gr, gi = gr, gi, fr, fi
-		}
-		gr -= fr
-		gi -= fi
-		k := bits.TrailingZeros64(uint64(gr | gi))
-		gr, gi = gr>>k, gi>>k
-		unit, ramified := quarticSupp(uint64(fr), uint64(fi))
-		e += uint64(k) * (2*ramified - unit)
-		if gr&gi&1 != 0 {
-			gr, gi = (gr+gi)>>1, (gi-gr)>>1
-			e += ramified
-		}
-		if gi&1 != 0 {
-			gr, gi = -gi, gr
-			e -= unit
-		}
-		if (gr+gi)&2 != 0 {
-			gr, gi = -gr, -gi
-			e -= 2 * unit
-		}
-	}
-}
-
-func absWord(v int64) int64 {
-	if v < 0 {
-		return -v
-	}
-	return v
-}
-
 // QuarticSymbol computes z^((p-1)/4) as an exponent of i (0, 1, 2, or 3)
 // using a variable-time Gaussian binary GCD. It returns 0 on zero by convention.
 func (z *Element) QuarticSymbol() uint8 {
@@ -199,7 +156,7 @@ func (z *Element) QuarticSymbol() uint8 {
 	sf, sg := f.size(), g.size()
 	for {
 		if sf.mid|sg.mid == 0 && (sf.lo|sg.lo) < 1<<61 {
-			return quarticWord(int64(f.r.lo), int64(f.i.lo), int64(g.r.lo), int64(g.i.lo), e)
+			return quartic.Word(int64(f.r.lo), int64(f.i.lo), int64(g.r.lo), int64(g.i.lo), e)
 		}
 		if sf.mid == 0 && sf.lo == 1 || sg.mid == 0 && sg.lo == 1 {
 			return uint8(e & 3)

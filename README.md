@@ -77,7 +77,8 @@ Inside each package:
 
 - Naive baseline: `curve448/subgroup_membership.go`, `(*PointAffine).isInSubGroupNaive`
 - Pornin method: `curve448/subgroup_membership.go`, `(*PointAffine).isInSubGroupPornin`
-- Divide-and-pair quartic-over-`Fp2` method: `curve448/subgroup_membership.go`, `(*PointAffine).isInSubGroupQuartic`
+- `curve448/fp2.E2.QuarticSymbol` returns the full quartic character index relative to `i`, or −1 for zero.
+- `isInSubGroupQuarticGCD` (default) uses the variable-time Gaussian binary GCD. `isInSubGroupQuartic` uses the torus PRAC predicate.
 - Main tests reproducing the comparison:
   - `TestSubgroupMembership`
   - `TestSubgroupAgreement`
@@ -89,7 +90,8 @@ Inside each package:
 
 - Naive baseline: `gc256a/subgroup_membership.go`, `(*PointAffine).isInSubGroupNaive`
 - Pornin method: `gc256a/subgroup_membership.go`, `(*PointAffine).isInSubGroupPornin`
-- Divide-and-pair quartic-over-`Fp2` method: `gc256a/subgroup_membership.go`, `(*PointAffine).isInSubGroupQuartic`
+- `gc256a/fp2.E2.QuarticSymbol` returns the full quartic character index relative to `i`, or −1 for zero.
+- `isInSubGroupQuarticGCD` (default) uses the variable-time Gaussian binary GCD. `isInSubGroupQuartic` uses the torus PRAC predicate.
 - Main tests reproducing the comparison:
   - `TestSubgroupMembership`
   - `TestSubgroupAgreement`
