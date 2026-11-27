@@ -287,14 +287,14 @@ func edwardsToWeierstrassScaled(p *PointAffine) (Xs, Ys, e fp.Element) {
 	return
 }
 
-// isInSubGroupOcticExp tests subgroup membership using the divide-and-pair
+// isInSubGroupOctic tests subgroup membership using the divide-and-pair
 // method with 0 halvings + 1 octic residuosity check.
 //
 // Since d = gcd(8, p-1) = 8 for the JubJub field (p ≡ 1 mod 8), no halvings
 // are needed. The degree-8 Miller function f_{8,T₈}(Q) is evaluated on the
 // Weierstrass model using a 3-step doubling chain T₈ → T₄ → T₂ → ∞, and
-// the octic symbol χ₈(f) = f^((p-1)/8) is checked via exponentiation.
-func (p *PointAffine) isInSubGroupOcticExp() bool {
+// the supplied predicate tests whether the resulting value is an eighth power.
+func (p *PointAffine) isInSubGroupOctic(isEighthPower func(fp.Element) bool) bool {
 	subgroupInitOnce.Do(initSubgroupConstants)
 
 	if isLowOrder(&p.X, &p.Y) {
@@ -363,13 +363,21 @@ func (p *PointAffine) isInSubGroupOcticExp() bool {
 	result.Mul(&result, &ell22)
 	result.Mul(&result, &v27)
 
-	// χ₈(f) = result^((p-1)/8). Check if it equals 1.
-	var chi fp.Element
-	chi.ExpByOcticExp(result)
-	return chi.IsOne()
+	return isEighthPower(result)
 }
 
-// IsInSubGroup tests subgroup membership using the fastest available method.
+func (p *PointAffine) isInSubGroupOcticExp() bool {
+	return p.isInSubGroupOctic(func(x fp.Element) bool {
+		var chi fp.Element
+		return chi.ExpByOcticExp(x).IsOne()
+	})
+}
+
+func (p *PointAffine) isInSubGroupOcticJoye() bool {
+	return p.isInSubGroupOctic(func(x fp.Element) bool { return x.OcticSymbol() == 0 })
+}
+
+// IsInSubGroup tests subgroup membership using the fixed-exponent octic test.
 func (p *PointAffine) IsInSubGroup() bool {
 	return p.isInSubGroupOcticExp()
 }
